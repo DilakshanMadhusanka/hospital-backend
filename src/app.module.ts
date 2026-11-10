@@ -10,6 +10,7 @@ import { WardsModule } from './modules/wards/wards.module.js';
 import { BedsModule } from './modules/beds/beds.module.js';
 import { HospitalServicesModule } from './modules/hospital-services/hospital-services.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { RbacModule } from './modules/rbac/rbac.module.js';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
     BedsModule,
     HospitalServicesModule,
     AuthModule,
+    RbacModule,
   ],
 })
 export class AppModule {}
