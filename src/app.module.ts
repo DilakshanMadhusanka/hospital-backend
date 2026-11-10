@@ -13,6 +13,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { RbacModule } from './modules/rbac/rbac.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
 import { OpdModule } from './modules/opd/opd.module.js';
+import { IpdModule } from './modules/ipd/ipd.module.js';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { OpdModule } from './modules/opd/opd.module.js';
     RbacModule,
     PatientsModule,
     OpdModule,
+    IpdModule,
   ],
 })
 export class AppModule {}

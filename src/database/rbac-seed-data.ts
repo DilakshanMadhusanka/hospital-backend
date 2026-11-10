@@ -65,6 +65,30 @@ export const permissions = [
   { code: 'opd.vitals.create', description: 'Record vital signs' },
   { code: 'opd.prescriptions.create', description: 'Create prescriptions' },
   { code: 'opd.investigations.create', description: 'Request investigations' },
+
+  { code: 'ipd.admissions.create', description: 'Create inpatient admissions' },
+  { code: 'ipd.admissions.read', description: 'View inpatient admissions' },
+  {
+    code: 'ipd.admissions.discharge',
+    description: 'Discharge admitted patients',
+  },
+
+  { code: 'ipd.beds.read', description: 'View available inpatient beds' },
+  { code: 'ipd.beds.allocate', description: 'Allocate inpatient beds' },
+  { code: 'ipd.beds.transfer', description: 'Transfer patients between beds' },
+
+  {
+    code: 'ipd.observations.create',
+    description: 'Record inpatient observations',
+  },
+  {
+    code: 'ipd.nursing-notes.create',
+    description: 'Create inpatient nursing notes',
+  },
+  {
+    code: 'ipd.clinical-records.read',
+    description: 'View inpatient clinical records',
+  },
 ];
 
 export const roles = [
