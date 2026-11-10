@@ -461,9 +461,12 @@ model PatientContact {
 
   patientId String @db.Uuid
 
-  type      ContactType
-  value     String
-  isPrimary Boolean     @default(false)
+  name         String?
+  relationship String?
+  isEmergency  Boolean     @default(false)
+  type         ContactType
+  value        String
+  isPrimary    Boolean     @default(false)
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
 

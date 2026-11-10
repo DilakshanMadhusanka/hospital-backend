@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import {
   BloodGroup as PrismaBloodGroup,
+  ContactType,
+  AllergySeverity,
   PatientSex as PrismaPatientSex,
   Prisma,
 } from '@prisma/client';
@@ -17,6 +19,11 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { CreatePatientDto } from './dto/create-patient.dto.js';
 import { UpdatePatientDto } from './dto/update-patient.dto.js';
 import { PatientQueryDto } from './dto/patient-query.dto.js';
+
+import { CreateAddressDto } from './dto/create-address.dto.js';
+import { CreateContactDto } from './dto/create-contact.dto.js';
+import { CreateMedicalHistoryDto } from './dto/create-medical-history.dto.js';
+import { CreateAllergyDto } from './dto/create-allergy.dto.js';
 
 const patientSexMap: Record<
   NonNullable<CreatePatientDto['gender']>,
@@ -328,5 +335,94 @@ export class PatientsService {
           : undefined,
       },
     });
+  }
+
+  async addAddress(
+    patientId: string,
+    hospitalId: string,
+    dto: CreateAddressDto,
+  ) {
+    await this.findOne(patientId, hospitalId);
+
+    return this.prisma.patientAddress.create({
+      data: {
+        patientId,
+        ...dto,
+      },
+    });
+  }
+
+  async addContact(
+    patientId: string,
+    hospitalId: string,
+    dto: CreateContactDto,
+  ) {
+    await this.findOne(patientId, hospitalId);
+
+    return this.prisma.patientContact.create({
+      data: {
+        patientId,
+        name: dto.name,
+        relationship: dto.relationship,
+        isEmergency: dto.isEmergency,
+        type: ContactType.OTHER,
+        value: dto.phone,
+      },
+    });
+  }
+
+  async addMedicalHistory(
+    patientId: string,
+    hospitalId: string,
+    dto: CreateMedicalHistoryDto,
+  ) {
+    await this.findOne(patientId, hospitalId);
+
+    return this.prisma.patientMedicalHistory.create({
+      data: {
+        patientId,
+        condition: dto.condition,
+        description: dto.description,
+        diagnosedAt: dto.diagnosedAt ? new Date(dto.diagnosedAt) : null,
+      },
+    });
+  }
+
+  async addAllergy(
+    patientId: string,
+    hospitalId: string,
+    dto: CreateAllergyDto,
+  ) {
+    await this.findOne(patientId, hospitalId);
+
+    return this.prisma.patientAllergy.create({
+      data: {
+        patientId,
+        substance: dto.allergen,
+        reaction: dto.reaction,
+        severity: dto.severity ? AllergySeverity[dto.severity] : undefined,
+      },
+    });
+  }
+
+  async getPatientClinicalInformation(patientId: string, hospitalId: string) {
+    await this.findOne(patientId, hospitalId);
+
+    const [medicalHistory, allergies] = await Promise.all([
+      this.prisma.patientMedicalHistory.findMany({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+      }),
+
+      this.prisma.patientAllergy.findMany({
+        where: { patientId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      medicalHistory,
+      allergies,
+    };
   }
 }

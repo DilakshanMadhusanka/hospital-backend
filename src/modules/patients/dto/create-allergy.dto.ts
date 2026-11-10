@@ -1,9 +1,4 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsIn,
-} from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
 
 export class CreateAllergyDto {
   @IsString()
@@ -16,5 +11,5 @@ export class CreateAllergyDto {
 
   @IsOptional()
   @IsIn(['MILD', 'MODERATE', 'SEVERE', 'UNKNOWN'])
-  severity?: string;
+  severity?: 'MILD' | 'MODERATE' | 'SEVERE' | 'UNKNOWN';
 }
