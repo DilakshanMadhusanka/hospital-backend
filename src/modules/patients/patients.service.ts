@@ -293,12 +293,15 @@ export class PatientsService {
   async update(patientId: string, hospitalId: string, dto: UpdatePatientDto) {
     await this.findOne(patientId, hospitalId);
 
-    const {
-      hospitalId: ignoredHospitalId,
-      nic,
-      passportNumber,
-      ...updateData
-    } = dto;
+    const updateData = { ...dto };
+
+    delete updateData.hospitalId;
+
+    const nic = updateData.nic;
+    const passportNumber = updateData.passportNumber;
+
+    delete updateData.nic;
+    delete updateData.passportNumber;
 
     // Identity changes require a separate verified workflow.
     if (nic || passportNumber) {
