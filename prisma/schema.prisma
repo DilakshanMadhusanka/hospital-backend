@@ -256,6 +256,7 @@ model User {
   firstName String
   lastName  String
   phone     String?
+  isActive  Boolean @default(true)
 
   status      UserStatus @default(ACTIVE)
   lastLoginAt DateTime?
