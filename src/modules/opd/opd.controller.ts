@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
 import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { UpdateOpdVisitStatusDto } from './dto/update-opd-visit-status.dto.js';
 
 @Controller('opd')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -45,19 +46,13 @@ export class OpdController {
     @Query('departmentId', ParseUUIDPipe) departmentId: string,
     @Query('status') status?: string,
   ) {
-    return this.opdService.getQueue(
-      hospitalId,
-      departmentId,
-      status,
-    );
+    return this.opdService.getQueue(hospitalId, departmentId, status);
   }
 
   // Get visit details.
   @Get('visits/:visitId')
   @Permissions('opd.visits.read')
-  getVisit(
-    @Param('visitId', ParseUUIDPipe) visitId: string,
-  ) {
+  getVisit(@Param('visitId', ParseUUIDPipe) visitId: string) {
     return this.opdService.getVisit(visitId);
   }
 
@@ -76,17 +71,15 @@ export class OpdController {
   @Permissions('opd.queue.manage')
   updateStatus(
     @Param('visitId', ParseUUIDPipe) visitId: string,
-    @Body('status') status: string,
+    @Body() dto: UpdateOpdVisitStatusDto,
   ) {
-    return this.opdService.updateVisitStatus(visitId, status);
+    return this.opdService.updateVisitStatus(visitId, dto.status);
   }
 
   // Create doctor schedule.
   @Post('doctor-schedules')
   @Permissions('opd.schedules.manage')
-  createDoctorSchedule(
-    @Body() dto: CreateDoctorScheduleDto,
-  ) {
+  createDoctorSchedule(@Body() dto: CreateDoctorScheduleDto) {
     return this.opdService.createDoctorSchedule(dto);
   }
 
@@ -97,10 +90,7 @@ export class OpdController {
     @Query('hospitalId', ParseUUIDPipe) hospitalId: string,
     @Query('departmentId', ParseUUIDPipe) departmentId: string,
   ) {
-    return this.opdService.getDoctorSchedules(
-      hospitalId,
-      departmentId,
-    );
+    return this.opdService.getDoctorSchedules(hospitalId, departmentId);
   }
 
   // Save doctor's consultation.
@@ -111,11 +101,7 @@ export class OpdController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreateConsultationDto,
   ) {
-    return this.opdService.saveConsultation(
-      visitId,
-      user.id,
-      dto,
-    );
+    return this.opdService.saveConsultation(visitId, user.id, dto);
   }
 
   // Complete consultation.
@@ -125,10 +111,7 @@ export class OpdController {
     @Param('visitId', ParseUUIDPipe) visitId: string,
     @CurrentUser() user: { id: string },
   ) {
-    return this.opdService.completeConsultation(
-      visitId,
-      user.id,
-    );
+    return this.opdService.completeConsultation(visitId, user.id);
   }
 
   // Record vital signs.
@@ -139,11 +122,7 @@ export class OpdController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreateVitalSignsDto,
   ) {
-    return this.opdService.recordVitalSigns(
-      visitId,
-      user.id,
-      dto,
-    );
+    return this.opdService.recordVitalSigns(visitId, user.id, dto);
   }
 
   // Create prescription.
@@ -154,11 +133,7 @@ export class OpdController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreatePrescriptionDto,
   ) {
-    return this.opdService.createPrescription(
-      visitId,
-      user.id,
-      dto,
-    );
+    return this.opdService.createPrescription(visitId, user.id, dto);
   }
 
   // Request laboratory investigation.
@@ -169,10 +144,6 @@ export class OpdController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreateInvestigationDto,
   ) {
-    return this.opdService.requestInvestigation(
-      visitId,
-      user.id,
-      dto,
-    );
+    return this.opdService.requestInvestigation(visitId, user.id, dto);
   }
 }
