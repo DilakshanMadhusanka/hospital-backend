@@ -572,10 +572,10 @@ model OPDVisit {
   visitNumber String @unique
   tokenNumber Int
 
-  patientId    String
-  hospitalId   String
-  departmentId String
-  doctorId     String?
+  patientId    String  @db.Uuid
+  hospitalId   String  @db.Uuid
+  departmentId String  @db.Uuid
+  doctorId     String? @db.Uuid
 
   visitDate DateTime       @default(now())
   status    OPDVisitStatus @default(REGISTERED)
@@ -607,8 +607,8 @@ model OPDVisit {
 
 model OPDTokenCounter {
   id           String   @id @default(uuid())
-  hospitalId   String
-  departmentId String
+  hospitalId   String   @db.Uuid
+  departmentId String   @db.Uuid
   visitDay     DateTime @db.Date
   lastToken    Int      @default(0)
 
@@ -622,9 +622,9 @@ model OPDTokenCounter {
 
 model DoctorSchedule {
   id           String @id @default(uuid())
-  doctorId     String
-  hospitalId   String
-  departmentId String
+  doctorId     String @db.Uuid
+  hospitalId   String @db.Uuid
+  departmentId String @db.Uuid
 
   dayOfWeek   Int
   startTime   String
@@ -648,7 +648,7 @@ model DoctorSchedule {
 model Consultation {
   id       String @id @default(uuid())
   visitId  String @unique
-  doctorId String
+  doctorId String @db.Uuid
 
   symptoms      String?
   diagnosis     String?
@@ -694,7 +694,7 @@ model VitalSigns {
 model Prescription {
   id       String             @id @default(uuid())
   visitId  String
-  doctorId String
+  doctorId String             @db.Uuid
   status   PrescriptionStatus @default(ACTIVE)
   notes    String?
 
@@ -727,7 +727,7 @@ model PrescriptionItem {
 model InvestigationRequest {
   id       String @id @default(uuid())
   visitId  String
-  doctorId String
+  doctorId String @db.Uuid
 
   investigationCode String?
   investigationName String
