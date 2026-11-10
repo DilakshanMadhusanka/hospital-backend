@@ -15,6 +15,18 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum IPDAdmissionStatus {
+  ADMITTED
+  DISCHARGED
+  CANCELLED
+}
+
+enum IPDObservationType {
+  ROUTINE
+  DOCTOR_REVIEW
+  EMERGENCY
+}
+
 enum OPDVisitStatus {
   REGISTERED
   WAITING
@@ -177,6 +189,7 @@ model Hospital {
   opdVisits        OPDVisit[]
   opdTokenCounters OPDTokenCounter[]
   doctorSchedules  DoctorSchedule[]
+  ipdAdmissions    IPDAdmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -202,6 +215,7 @@ model Department {
   staffAssignments HospitalStaffAssignment[]
   userRoles        UserRole[]
   opdTokenCounters OPDTokenCounter[]
+  ipdAdmissions    IPDAdmission[]
 
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -245,6 +259,8 @@ model Bed {
   status    BedStatus @default(AVAILABLE)
 
   description String?
+
+  ipdAllocations IPDBedAllocation[]
 
   hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   ward     Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
@@ -316,6 +332,14 @@ model User {
   consultationEntries   Consultation[]         @relation("ConsultationUser")
   prescriptionEntries   Prescription[]         @relation("PrescriptionUser")
   investigationEntries  InvestigationRequest[] @relation("InvestigationRequestUser")
+  ipdAdmissionsCreated  IPDAdmission[]         @relation("IPDAdmittedBy")
+  ipdAdmissionsAsDoctor IPDAdmission[]         @relation("IPDAttendingDoctor")
+
+  ipdBedAllocationsCreated  IPDBedAllocation[] @relation("IPDBedAllocatedBy")
+  ipdBedAllocationsReleased IPDBedAllocation[] @relation("IPDBedReleasedBy")
+
+  ipdObservationsRecorded IPDObservation[] @relation("IPDObservationRecordedBy")
+  ipdNursingNotesRecorded IPDNursingNote[] @relation("IPDNursingNoteRecordedBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -451,6 +475,7 @@ model Patient {
   medicalHistory PatientMedicalHistory[]
   allergies      PatientAllergy[]
   opdVisits      OPDVisit[]
+  ipdAdmissions  IPDAdmission[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -743,6 +768,111 @@ model InvestigationRequest {
 
   @@index([visitId])
   @@index([status])
+}
+
+model IPDAdmission {
+  id              String @id @default(uuid())
+  admissionNumber String @unique
+
+  patientId    String
+  hospitalId   String
+  departmentId String
+
+  admittedById      String
+  attendingDoctorId String?
+
+  admissionDate DateTime  @default(now())
+  dischargeDate DateTime?
+
+  status IPDAdmissionStatus @default(ADMITTED)
+
+  admissionReason    String
+  admissionDiagnosis String?
+  clinicalNotes      String?
+
+  dischargeSummary      String?
+  dischargeInstructions String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient    Patient    @relation(fields: [patientId], references: [id])
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  admittedBy      User  @relation("IPDAdmittedBy", fields: [admittedById], references: [id])
+  attendingDoctor User? @relation("IPDAttendingDoctor", fields: [attendingDoctorId], references: [id])
+
+  bedAllocations IPDBedAllocation[]
+  observations   IPDObservation[]
+  nursingNotes   IPDNursingNote[]
+
+  @@index([hospitalId, status])
+  @@index([patientId])
+  @@index([departmentId, admissionDate])
+  @@index([attendingDoctorId])
+}
+
+model IPDBedAllocation {
+  id String @id @default(uuid())
+
+  admissionId String
+  bedId       String
+
+  allocatedById String
+  releasedById  String?
+
+  allocatedAt DateTime  @default(now())
+  releasedAt  DateTime?
+
+  admission IPDAdmission @relation(fields: [admissionId], references: [id])
+  bed       Bed          @relation(fields: [bedId], references: [id])
+
+  allocatedBy User  @relation("IPDBedAllocatedBy", fields: [allocatedById], references: [id])
+  releasedBy  User? @relation("IPDBedReleasedBy", fields: [releasedById], references: [id])
+
+  @@index([admissionId, releasedAt])
+  @@index([bedId, releasedAt])
+}
+
+model IPDObservation {
+  id          String @id @default(uuid())
+  admissionId String
+
+  type IPDObservationType @default(ROUTINE)
+
+  temperature      Float?
+  systolicBP       Int?
+  diastolicBP      Int?
+  pulseRate        Int?
+  respiratoryRate  Int?
+  oxygenSaturation Float?
+
+  weightKg Float?
+  notes    String?
+
+  recordedById String
+  recordedAt   DateTime @default(now())
+
+  admission  IPDAdmission @relation(fields: [admissionId], references: [id])
+  recordedBy User         @relation("IPDObservationRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([admissionId, recordedAt])
+}
+
+model IPDNursingNote {
+  id          String @id @default(uuid())
+  admissionId String
+
+  note         String
+  careProvided String?
+  recordedById String
+  recordedAt   DateTime @default(now())
+
+  admission  IPDAdmission @relation(fields: [admissionId], references: [id])
+  recordedBy User         @relation("IPDNursingNoteRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([admissionId, recordedAt])
 }
 
 // ======================================================
