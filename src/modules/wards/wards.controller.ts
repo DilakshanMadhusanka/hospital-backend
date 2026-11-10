@@ -23,6 +23,8 @@ import { WardType } from '@prisma/client';
 
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
+import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 
 class WardQueryDto {
 
@@ -56,7 +58,7 @@ class WardQueryDto {
   type?: WardType;
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags('Wards')
 @Controller('wards')
 export class WardsController {
@@ -65,22 +67,26 @@ export class WardsController {
     private readonly service: WardsService,
   ) {}
 
+  @Permissions('wards.create')
   @Post()
   @ApiOperation({ summary: 'Create hospital ward' })
   create(@Body() dto: CreateWardDto) {
     return this.service.create(dto);
   }
 
+  @Permissions('wards.read')
   @Get()
   findAll(@Query() query: WardQueryDto) {
     return this.service.findAll(query);
   }
 
+  @Permissions('wards.read')
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);
   }
 
+  @Permissions('wards.update')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -89,6 +95,7 @@ export class WardsController {
     return this.service.update(id, dto);
   }
 
+  @Permissions('wards.delete')
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);

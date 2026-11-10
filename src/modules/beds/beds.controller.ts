@@ -24,6 +24,8 @@ import { UpdateBedDto } from './dto/update-bed.dto.js';
 
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
+import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 
 class BedQueryDto {
 
@@ -57,7 +59,7 @@ class BedQueryDto {
   search?: string;
 }
     
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags('Beds')
 @Controller('beds')
 export class BedsController {
@@ -66,18 +68,21 @@ export class BedsController {
     private readonly service: BedsService,
   ) {}
 
+  @Permissions('beds.create')
   @Post()
   @ApiOperation({ summary: 'Register a new bed' })
   create(@Body() dto: CreateBedDto) {
     return this.service.create(dto);
   }
 
+  @Permissions('beds.read')
   @Get()
   @ApiOperation({ summary: 'Get beds with filters' })
   findAll(@Query() query: BedQueryDto) {
     return this.service.findAll(query);
   }
 
+  @Permissions('beds.read')
   @Get('availability/:hospitalId')
   @ApiOperation({ summary: 'Get hospital bed availability' })
   getAvailability(
@@ -86,11 +91,13 @@ export class BedsController {
     return this.service.getAvailability(hospitalId);
   }
 
+  @Permissions('beds.read')
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);
   }
 
+  @Permissions('beds.update')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -99,6 +106,7 @@ export class BedsController {
     return this.service.update(id, dto);
   }
 
+  @Permissions('beds.delete')
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);

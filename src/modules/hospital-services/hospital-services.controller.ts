@@ -12,7 +12,15 @@ import {
 
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 
-import { IsEnum, IsOptional, IsString, IsUUID, IsInt, Min, Max } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 import { ServiceStatus } from '@prisma/client';
@@ -24,9 +32,10 @@ import { UpdateHospitalServiceDto } from './dto/update-hospital-service.dto.js';
 
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
+import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 
 class HospitalServiceQueryDto {
-
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -56,33 +65,34 @@ class HospitalServiceQueryDto {
   @IsEnum(ServiceStatus)
   status?: ServiceStatus;
 }
-    
-@UseGuards(JwtAuthGuard)
+
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags('Hospital Services')
 @Controller('hospital-services')
 export class HospitalServicesController {
+  constructor(private readonly service: HospitalServicesService) {}
 
-  constructor(
-    private readonly service: HospitalServicesService,
-  ) {}
-
+  @Permissions('hospital-services.create')
   @Post()
   @ApiOperation({ summary: 'Create hospital service' })
   create(@Body() dto: CreateHospitalServiceDto) {
     return this.service.create(dto);
   }
 
+  @Permissions('hospital-services.read')
   @Get()
   @ApiOperation({ summary: 'Get hospital services' })
   findAll(@Query() query: HospitalServiceQueryDto) {
     return this.service.findAll(query);
   }
 
+  @Permissions('hospital-services.read')
   @Get(':id')
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.findOne(id);
   }
 
+  @Permissions('hospital-services.update')
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -91,6 +101,7 @@ export class HospitalServicesController {
     return this.service.update(id, dto);
   }
 
+  @Permissions('hospital-services.delete')
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.remove(id);

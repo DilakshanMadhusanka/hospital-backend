@@ -24,7 +24,9 @@ export class PermissionsGuard implements CanActivate {
 
     // No permission metadata means this guard has nothing to enforce.
     if (!requiredPermissions?.length) {
-      return true;
+      throw new ForbiddenException(
+        'No permissions configured for this endpoint',
+      );
     }
 
     const request = context.switchToHttp().getRequest();
@@ -43,10 +45,7 @@ export class PermissionsGuard implements CanActivate {
     const assignments = await this.prisma.userRole.findMany({
       where: {
         userId: user.id,
-        OR: [
-          { hospitalId: null },
-          ...(hospitalId ? [{ hospitalId }] : []),
-        ],
+        OR: [{ hospitalId: null }, ...(hospitalId ? [{ hospitalId }] : [])],
       },
       include: {
         role: {
