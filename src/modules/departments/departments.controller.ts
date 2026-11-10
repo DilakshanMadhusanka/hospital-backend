@@ -18,6 +18,10 @@ import { CreateDepartmentDto } from './dto/create-department.dto.js';
 import { UpdateDepartmentDto } from './dto/update-department.dto.js';
 import { DepartmentQueryDto } from './dto/department-query.dto.js';
 
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+
+@UseGuards(JwtAuthGuard)
 @ApiTags('Departments')
 @Controller('departments')
 export class DepartmentsController {

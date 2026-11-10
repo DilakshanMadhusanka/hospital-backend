@@ -22,6 +22,9 @@ import { HospitalServicesService } from './hospital-services.service.js';
 import { CreateHospitalServiceDto } from './dto/create-hospital-service.dto.js';
 import { UpdateHospitalServiceDto } from './dto/update-hospital-service.dto.js';
 
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+
 class HospitalServiceQueryDto {
 
   @IsOptional()
@@ -53,7 +56,8 @@ class HospitalServiceQueryDto {
   @IsEnum(ServiceStatus)
   status?: ServiceStatus;
 }
-
+    
+@UseGuards(JwtAuthGuard)
 @ApiTags('Hospital Services')
 @Controller('hospital-services')
 export class HospitalServicesController {

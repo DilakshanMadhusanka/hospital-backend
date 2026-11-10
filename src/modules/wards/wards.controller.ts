@@ -21,6 +21,9 @@ import { IsEnum, IsOptional, IsString, IsUUID, Max, Min, IsInt } from 'class-val
 import { Type } from 'class-transformer';
 import { WardType } from '@prisma/client';
 
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+
 class WardQueryDto {
 
   @IsOptional()
@@ -53,6 +56,7 @@ class WardQueryDto {
   type?: WardType;
 }
 
+@UseGuards(JwtAuthGuard)
 @ApiTags('Wards')
 @Controller('wards')
 export class WardsController {

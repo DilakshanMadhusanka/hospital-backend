@@ -22,6 +22,9 @@ import { BedsService } from './beds.service.js';
 import { CreateBedDto } from './dto/create-bed.dto.js';
 import { UpdateBedDto } from './dto/update-bed.dto.js';
 
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+
 class BedQueryDto {
 
   @IsOptional()
@@ -53,7 +56,8 @@ class BedQueryDto {
   @IsString()
   search?: string;
 }
-
+    
+@UseGuards(JwtAuthGuard)
 @ApiTags('Beds')
 @Controller('beds')
 export class BedsController {

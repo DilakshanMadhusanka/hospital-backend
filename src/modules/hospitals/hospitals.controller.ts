@@ -21,6 +21,10 @@ import { CreateHospitalDto } from './dto/create-hospital.dto.js';
 import { UpdateHospitalDto } from './dto/update-hospital.dto.js';
 import { HospitalQueryDto } from './dto/hospital-query.dto.js';
 
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+
+@UseGuards(JwtAuthGuard)
 @ApiTags('Hospitals')
 @Controller('hospitals')
 export class HospitalsController {
@@ -28,7 +32,7 @@ export class HospitalsController {
   constructor(
     private readonly hospitalsService: HospitalsService,
   ) {}
-
+  
   @Post()
   @ApiOperation({ summary: 'Register a new hospital' })
   create(@Body() dto: CreateHospitalDto) {
