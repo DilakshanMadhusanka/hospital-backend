@@ -384,15 +384,20 @@ model HospitalStaffAssignment {
 model Patient {
   id String @id @default(uuid()) @db.Uuid
 
-  firstName  String
-  middleName String?
-  lastName   String
+  patientNumber  String  @unique
+  nic            String? @unique
+  passportNumber String? @unique
+  firstName      String
+  middleName     String?
+  lastName       String
 
   dateOfBirth DateTime?
-  sex         PatientSex @default(UNKNOWN)
+  gender      PatientSex @default(UNKNOWN) @map("sex")
 
   nationalId String?
   bloodGroup BloodGroup @default(UNKNOWN)
+  phone      String?
+  email      String?
 
   registrations  HospitalPatient[]
   addresses      PatientAddress[]
@@ -415,18 +420,18 @@ model HospitalPatient {
   patientId  String @db.Uuid
   hospitalId String @db.Uuid
 
-  hospitalPatientNumber String
-  registrationStatus    PatientRegistrationStatus @default(ACTIVE)
+  registrationNumber String                    @map("hospitalPatientNumber")
+  status             PatientRegistrationStatus @default(ACTIVE) @map("registrationStatus")
 
   registeredAt DateTime @default(now())
 
   patient  Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
   hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
-  @@unique([hospitalId, hospitalPatientNumber])
+  @@unique([hospitalId, registrationNumber])
   @@unique([patientId, hospitalId])
   @@index([patientId])
-  @@index([hospitalId, registrationStatus])
+  @@index([hospitalId, status])
   @@map("hospital_patients")
 }
 
