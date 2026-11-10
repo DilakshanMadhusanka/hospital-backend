@@ -12,6 +12,7 @@ import { HospitalServicesModule } from './modules/hospital-services/hospital-ser
 import { AuthModule } from './modules/auth/auth.module.js';
 import { RbacModule } from './modules/rbac/rbac.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
+import { OpdModule } from './modules/opd/opd.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { PatientsModule } from './modules/patients/patients.module.js';
     AuthModule,
     RbacModule,
     PatientsModule,
+    OpdModule,
   ],
 })
 export class AppModule {}

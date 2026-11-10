@@ -37,7 +37,10 @@ export const permissions = [
 
   // Laboratory
   { code: 'laboratory.read', description: 'View laboratory investigations' },
-  { code: 'laboratory.manage', description: 'Manage laboratory investigations' },
+  {
+    code: 'laboratory.manage',
+    description: 'Manage laboratory investigations',
+  },
 
   // Staff and administration
   { code: 'staff.read', description: 'View hospital staff' },
@@ -45,6 +48,23 @@ export const permissions = [
   { code: 'roles.manage', description: 'Manage roles and permissions' },
   { code: 'billing.read', description: 'View billing information' },
   { code: 'billing.manage', description: 'Manage billing and payments' },
+
+  // OPD management
+  { code: 'opd.register', description: 'Register OPD visits' },
+  { code: 'opd.queue.read', description: 'View OPD queues' },
+  { code: 'opd.queue.manage', description: 'Manage OPD queues' },
+  { code: 'opd.visits.read', description: 'View OPD visits' },
+
+  // Doctor management
+  { code: 'opd.doctor.assign', description: 'Assign doctors to OPD visits' },
+  { code: 'opd.schedules.read', description: 'View doctor schedules' },
+  { code: 'opd.schedules.manage', description: 'Manage doctor schedules' },
+
+  // Clinical activities
+  { code: 'opd.consultation.manage', description: 'Manage consultations' },
+  { code: 'opd.vitals.create', description: 'Record vital signs' },
+  { code: 'opd.prescriptions.create', description: 'Create prescriptions' },
+  { code: 'opd.investigations.create', description: 'Request investigations' },
 ];
 
 export const roles = [
@@ -75,6 +95,10 @@ export const roles = [
       'staff.manage',
       'billing.read',
       'billing.manage',
+      'opd.queue.read',
+      'opd.visits.read',
+      'opd.schedules.read',
+      'opd.schedules.manage',
     ],
   },
   {
@@ -88,6 +112,12 @@ export const roles = [
       'wards.read',
       'beds.read',
       'laboratory.read',
+      'opd.queue.read',
+      'opd.visits.read',
+      'opd.consultation.manage',
+      'opd.prescriptions.create',
+      'opd.investigations.create',
+      'opd.schedules.read',
     ],
   },
   {
@@ -98,6 +128,9 @@ export const roles = [
       'medical_records.read',
       'wards.read',
       'beds.read',
+      'opd.queue.read',
+      'opd.visits.read',
+      'opd.vitals.create',
     ],
   },
   {
@@ -113,11 +146,7 @@ export const roles = [
   {
     name: 'LAB_TECHNICIAN',
     description: 'Laboratory staff',
-    permissions: [
-      'patients.read',
-      'laboratory.read',
-      'laboratory.manage',
-    ],
+    permissions: ['patients.read', 'laboratory.read', 'laboratory.manage'],
   },
   {
     name: 'RECEPTIONIST',
@@ -128,23 +157,19 @@ export const roles = [
       'patients.update',
       'hospitals.read',
       'departments.read',
+      'opd.register',
+      'opd.queue.read',
+      'opd.visits.read',
     ],
   },
   {
     name: 'CASHIER',
     description: 'Hospital cashier',
-    permissions: [
-      'patients.read',
-      'billing.read',
-      'billing.manage',
-    ],
+    permissions: ['patients.read', 'billing.read', 'billing.manage'],
   },
   {
     name: 'RECORDS_OFFICER',
     description: 'Medical records officer',
-    permissions: [
-      'patients.read',
-      'medical_records.read',
-    ],
+    permissions: ['patients.read', 'medical_records.read'],
   },
 ];
