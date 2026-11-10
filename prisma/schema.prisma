@@ -15,6 +15,36 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum OPDVisitStatus {
+  REGISTERED
+  WAITING
+  CALLED
+  IN_CONSULTATION
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ConsultationStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum InvestigationStatus {
+  REQUESTED
+  SAMPLE_COLLECTED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum PrescriptionStatus {
+  ACTIVE
+  DISPENSED
+  PARTIALLY_DISPENSED
+  CANCELLED
+}
+
 enum HospitalType {
   NATIONAL
   TEACHING
@@ -144,6 +174,9 @@ model Hospital {
   userRoles        UserRole[]
   auditLogs        AuditLog[]
   settings         SystemSetting[]
+  opdVisits        OPDVisit[]
+  opdTokenCounters OPDTokenCounter[]
+  doctorSchedules  DoctorSchedule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -168,9 +201,12 @@ model Department {
   services         HospitalService[]
   staffAssignments HospitalStaffAssignment[]
   userRoles        UserRole[]
+  opdTokenCounters OPDTokenCounter[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  opdvisits       OPDVisit[]
+  doctorSchedules DoctorSchedule[]
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -268,8 +304,18 @@ model User {
   auditLogs                AuditLog[]
   settingsUpdated          SystemSetting[]           @relation("SettingUpdater")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  opdvisits             OPDVisit[]
+  opdDoctorVisits       OPDVisit[]             @relation("OPDDoctor")
+  doctorSchedules       DoctorSchedule[]       @relation("DoctorSchedules")
+  consultations         Consultation[]         @relation("ConsultationDoctor")
+  prescriptions         Prescription[]         @relation("PrescriptionDoctor")
+  investigationRequests InvestigationRequest[] @relation("InvestigationDoctor")
+  scheduleEntries       DoctorSchedule[]       @relation("DoctorScheduleUser")
+  consultationEntries   Consultation[]         @relation("ConsultationUser")
+  prescriptionEntries   Prescription[]         @relation("PrescriptionUser")
+  investigationEntries  InvestigationRequest[] @relation("InvestigationRequestUser")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -404,6 +450,7 @@ model Patient {
   contacts       PatientContact[]
   medicalHistory PatientMedicalHistory[]
   allergies      PatientAllergy[]
+  opdVisits      OPDVisit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -518,6 +565,184 @@ model PatientAllergy {
 
   @@index([patientId, isActive])
   @@map("patient_allergies")
+}
+
+model OPDVisit {
+  id          String @id @default(uuid())
+  visitNumber String @unique
+  tokenNumber Int
+
+  patientId    String
+  hospitalId   String
+  departmentId String
+  doctorId     String?
+
+  visitDate DateTime       @default(now())
+  status    OPDVisitStatus @default(REGISTERED)
+
+  chiefComplaint String?
+  registeredBy   String?
+  notes          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient    Patient    @relation(fields: [patientId], references: [id])
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  doctor     User?      @relation("OPDDoctor", fields: [doctorId], references: [id])
+
+  consultation   Consultation?
+  vitalSigns     VitalSigns[]
+  prescriptions  Prescription[]
+  investigations InvestigationRequest[]
+  user           User?                  @relation(fields: [userId], references: [id])
+  userId         String?                @db.Uuid
+
+  @@unique([hospitalId, departmentId, visitDate, tokenNumber])
+  @@index([hospitalId, departmentId, visitDate, status])
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model OPDTokenCounter {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  departmentId String
+  visitDay     DateTime @db.Date
+  lastToken    Int      @default(0)
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([hospitalId, departmentId, visitDay])
+}
+
+model DoctorSchedule {
+  id           String @id @default(uuid())
+  doctorId     String
+  hospitalId   String
+  departmentId String
+
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  slotMinutes Int    @default(15)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  doctor     User       @relation("DoctorSchedules", fields: [doctorId], references: [id])
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+  user       User?      @relation("DoctorScheduleUser", fields: [userId], references: [id])
+  userId     String?    @db.Uuid
+
+  @@index([doctorId, hospitalId, dayOfWeek])
+}
+
+model Consultation {
+  id       String @id @default(uuid())
+  visitId  String @unique
+  doctorId String
+
+  symptoms      String?
+  diagnosis     String?
+  clinicalNotes String?
+  treatmentPlan String?
+  followUpDate  DateTime?
+
+  status ConsultationStatus @default(IN_PROGRESS)
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  visit  OPDVisit @relation(fields: [visitId], references: [id])
+  doctor User     @relation("ConsultationDoctor", fields: [doctorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation("ConsultationUser", fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+}
+
+model VitalSigns {
+  id      String @id @default(uuid())
+  visitId String
+
+  temperature      Float?
+  systolicBP       Int?
+  diastolicBP      Int?
+  pulseRate        Int?
+  respiratoryRate  Int?
+  oxygenSaturation Float?
+  weightKg         Float?
+  heightCm         Float?
+
+  recordedBy String?
+  recordedAt DateTime @default(now())
+
+  visit OPDVisit @relation(fields: [visitId], references: [id])
+
+  @@index([visitId, recordedAt])
+}
+
+model Prescription {
+  id       String             @id @default(uuid())
+  visitId  String
+  doctorId String
+  status   PrescriptionStatus @default(ACTIVE)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visit  OPDVisit           @relation(fields: [visitId], references: [id])
+  doctor User               @relation("PrescriptionDoctor", fields: [doctorId], references: [id])
+  items  PrescriptionItem[]
+  user   User?              @relation("PrescriptionUser", fields: [userId], references: [id])
+  userId String?            @db.Uuid
+
+  @@index([visitId])
+}
+
+model PrescriptionItem {
+  id             String @id @default(uuid())
+  prescriptionId String
+
+  medicineName String
+  dosage       String
+  frequency    String
+  duration     String
+  quantity     Int
+  instructions String?
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
+
+model InvestigationRequest {
+  id       String @id @default(uuid())
+  visitId  String
+  doctorId String
+
+  investigationCode String?
+  investigationName String
+  clinicalReason    String?
+
+  status      InvestigationStatus @default(REQUESTED)
+  requestedAt DateTime            @default(now())
+
+  visit  OPDVisit @relation(fields: [visitId], references: [id])
+  doctor User     @relation("InvestigationDoctor", fields: [doctorId], references: [id])
+  user   User?    @relation("InvestigationRequestUser", fields: [userId], references: [id])
+  userId String?  @db.Uuid
+
+  @@index([visitId])
+  @@index([status])
 }
 
 // ======================================================
