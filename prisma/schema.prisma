@@ -314,6 +314,7 @@ model Hospital {
   imagingEquipment      ImagingEquipment[]
   radiologyRequests     RadiologyRequest[]
   radiologyAppointments RadiologyAppointment[]
+  radiologyReports      RadiologyReport[]
 
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -499,6 +500,9 @@ model User {
   pharmacyDispenses             PharmacyDispense[]
   radiologyRequestsCreated      RadiologyRequest[]
   radiologyAppointmentsCreated  RadiologyAppointment[]
+  radiologyReportsCreated       RadiologyReport[]      @relation("RadiologyReportAuthor")
+  radiologyReportsVerified      RadiologyReport[]      @relation("RadiologyReportVerifier")
+  radiologyImagesUploaded       RadiologyImage[]       @relation("RadiologyImageUploader")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1509,6 +1513,8 @@ model RadiologyAppointment {
   startedAt   DateTime?
   completedAt DateTime?
 
+  reports RadiologyReport[]
+
   hospital  Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
   request   RadiologyRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
   equipment ImagingEquipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
@@ -1522,6 +1528,84 @@ model RadiologyAppointment {
   @@index([requestId, status])
   @@index([status, scheduledStart])
   @@map("radiology_appointments")
+}
+
+model RadiologyReport {
+  id String @id @default(uuid()) @db.Uuid
+
+  hospitalId    String @db.Uuid
+  appointmentId String @db.Uuid
+
+  version Int @default(1)
+
+  technique       String?
+  clinicalHistory String?
+  findings        String
+  impression      String
+  recommendations String?
+
+  status RadiologyReportStatus @default(DRAFT)
+
+  radiologistId String  @db.Uuid
+  verifiedById  String? @db.Uuid
+
+  verifiedAt DateTime?
+  amendedAt  DateTime?
+
+  // Links a new version to the report it supersedes.
+  previousReportId String? @db.Uuid
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+
+  appointment RadiologyAppointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+
+  radiologist User @relation("RadiologyReportAuthor", fields: [radiologistId], references: [id], onDelete: Restrict)
+
+  verifiedBy User? @relation("RadiologyReportVerifier", fields: [verifiedById], references: [id], onDelete: Restrict)
+
+  previousReport RadiologyReport? @relation("RadiologyReportVersions", fields: [previousReportId], references: [id], onDelete: Restrict)
+
+  nextVersions RadiologyReport[] @relation("RadiologyReportVersions")
+
+  images RadiologyImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([appointmentId, version])
+  @@index([hospitalId, status, createdAt])
+  @@index([radiologistId, createdAt])
+  @@index([appointmentId])
+  @@index([previousReportId])
+  @@map("radiology_reports")
+}
+
+model RadiologyImage {
+  id String @id @default(uuid()) @db.Uuid
+
+  hospitalId String @db.Uuid
+  reportId   String @db.Uuid
+
+  fileName   String
+  storageKey String
+  mimeType   String
+  fileSize   BigInt
+
+  checksum String?
+
+  description String?
+
+  uploadedById String @db.Uuid
+
+  report RadiologyReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
+
+  uploadedBy User @relation("RadiologyImageUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([hospitalId, reportId])
+  @@index([uploadedById, createdAt])
+  @@map("radiology_images")
 }
 
 // ======================================================
