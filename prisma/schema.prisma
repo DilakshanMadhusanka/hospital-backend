@@ -295,24 +295,25 @@ model Hospital {
   phone String?
   email String?
 
-  departments         Department[]
-  wards               Ward[]
-  beds                Bed[]
-  services            HospitalService[]
-  staffAssignments    HospitalStaffAssignment[]
-  registrations       HospitalPatient[]
-  userRoles           UserRole[]
-  auditLogs           AuditLog[]
-  settings            SystemSetting[]
-  opdVisits           OPDVisit[]
-  opdTokenCounters    OPDTokenCounter[]
-  doctorSchedules     DoctorSchedule[]
-  ipdAdmissions       IPDAdmission[]
-  labTests            LabTest[]
-  labRequests         LabRequest[]
-  radiologyProcedures RadiologyProcedure[]
-  imagingEquipment    ImagingEquipment[]
-  radiologyRequests   RadiologyRequest[]
+  departments           Department[]
+  wards                 Ward[]
+  beds                  Bed[]
+  services              HospitalService[]
+  staffAssignments      HospitalStaffAssignment[]
+  registrations         HospitalPatient[]
+  userRoles             UserRole[]
+  auditLogs             AuditLog[]
+  settings              SystemSetting[]
+  opdVisits             OPDVisit[]
+  opdTokenCounters      OPDTokenCounter[]
+  doctorSchedules       DoctorSchedule[]
+  ipdAdmissions         IPDAdmission[]
+  labTests              LabTest[]
+  labRequests           LabRequest[]
+  radiologyProcedures   RadiologyProcedure[]
+  imagingEquipment      ImagingEquipment[]
+  radiologyRequests     RadiologyRequest[]
+  radiologyAppointments RadiologyAppointment[]
 
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -490,13 +491,14 @@ model User {
   labResultsEntered  LabResult[] @relation("LabResultEnteredBy")
   labResultsVerified LabResult[] @relation("LabResultVerifiedBy")
 
-  pharmacyPurchaseOrdersCreated PurchaseOrder[]    @relation("PharmacyPurchaseOrderCreator")
-  pharmacyStockMovements        StockMovement[]    @relation("PharmacyStockMovementUser")
-  pharmacyDispensesCreated      PharmacyDispense[] @relation("PharmacyDispenseUser")
+  pharmacyPurchaseOrdersCreated PurchaseOrder[]        @relation("PharmacyPurchaseOrderCreator")
+  pharmacyStockMovements        StockMovement[]        @relation("PharmacyStockMovementUser")
+  pharmacyDispensesCreated      PharmacyDispense[]     @relation("PharmacyDispenseUser")
   purchaseOrders                PurchaseOrder[]
   stockMovements                StockMovement[]
   pharmacyDispenses             PharmacyDispense[]
   radiologyRequestsCreated      RadiologyRequest[]
+  radiologyAppointmentsCreated  RadiologyAppointment[]
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1429,7 +1431,7 @@ model ImagingEquipment {
   hospital   Hospital    @relation(fields: [hospitalId], references: [id])
   department Department? @relation(fields: [departmentId], references: [id])
 
-  // appointments RadiologyAppointment[]
+  appointments RadiologyAppointment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1474,6 +1476,8 @@ model RadiologyRequest {
   opdVisit     OPDVisit?     @relation(fields: [opdVisitId], references: [id], onDelete: Restrict)
   ipdAdmission IPDAdmission? @relation(fields: [ipdAdmissionId], references: [id], onDelete: Restrict)
 
+  appointments RadiologyAppointment[]
+
   createdAt DateTime @default(now())
 
   @@unique([hospitalId, requestNumber])
@@ -1484,6 +1488,40 @@ model RadiologyRequest {
   @@index([opdVisitId])
   @@index([ipdAdmissionId])
   @@map("radiology_requests")
+}
+
+model RadiologyAppointment {
+  id String @id @default(uuid()) @db.Uuid
+
+  hospitalId  String @db.Uuid
+  requestId   String @db.Uuid
+  equipmentId String @db.Uuid
+  createdById String @db.Uuid
+
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+
+  status RadiologyAppointmentStatus @default(SCHEDULED)
+
+  notes String?
+
+  arrivedAt   DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  hospital  Hospital         @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  request   RadiologyRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  equipment ImagingEquipment @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([hospitalId, scheduledStart])
+  @@index([equipmentId, scheduledStart, scheduledEnd])
+  @@index([requestId, status])
+  @@index([status, scheduledStart])
+  @@map("radiology_appointments")
 }
 
 // ======================================================
