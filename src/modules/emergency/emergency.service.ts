@@ -774,4 +774,67 @@ export class EmergencyService {
 
     return encounter;
   }
+
+  async getEmergencyInvestigations(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    const encounter = await this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+      select: {
+        id: true,
+        encounterNumber: true,
+        hospitalId: true,
+        patientId: true,
+
+        labRequests: {
+          orderBy: {
+            requestedAt: 'desc',
+          },
+          include: {
+            items: true,
+          },
+        },
+
+        radiologyRequests: {
+          orderBy: {
+            requestedAt: 'desc',
+          },
+          include: {
+            procedure: true,
+            appointments: {
+              include: {
+                reports: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!encounter) {
+      throw new NotFoundException('Emergency encounter not found.');
+    }
+
+    return {
+      encounterId: encounter.id,
+      encounterNumber: encounter.encounterNumber,
+
+      investigations: {
+        laboratory: encounter.labRequests,
+        radiology: encounter.radiologyRequests,
+      },
+
+      summary: {
+        laboratoryCount: encounter.labRequests.length,
+        radiologyCount: encounter.radiologyRequests.length,
+      },
+    };
+  }
 }

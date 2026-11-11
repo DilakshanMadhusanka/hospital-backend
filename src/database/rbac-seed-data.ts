@@ -293,6 +293,11 @@ export const permissions = [
     code: 'emergency.clinical-record.read',
     description: 'View emergency clinical records',
   },
+
+  {
+    code: 'emergency.investigations.read',
+    description: 'View emergency laboratory and radiology investigations',
+  },
 ];
 
 export const roles = [

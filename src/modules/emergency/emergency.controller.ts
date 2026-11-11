@@ -159,4 +159,18 @@ export class EmergencyController {
       encounterId,
     );
   }
+
+  @Get('encounters/:encounterId/investigations')
+  @Permissions('emergency.investigations.read')
+  getEmergencyInvestigations(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.emergencyService.getEmergencyInvestigations(
+      hospitalId,
+      user.id,
+      encounterId,
+    );
+  }
 }

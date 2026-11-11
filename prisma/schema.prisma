@@ -1185,14 +1185,17 @@ model LabRequest {
 
   requestedBy User @relation("LabRequestDoctor", fields: [requestedById], references: [id])
 
-  items  LabRequestItem[]
-  user   User?            @relation(fields: [userId], references: [id])
-  userId String?          @db.Uuid
+  items                LabRequestItem[]
+  user                 User?               @relation(fields: [userId], references: [id])
+  userId               String?             @db.Uuid
+  emergencyEncounter   EmergencyEncounter? @relation(fields: [emergencyEncounterId], references: [id], onDelete: Restrict)
+  emergencyEncounterId String?             @db.Uuid
 
   @@index([hospitalId, status, requestedAt])
   @@index([patientId, requestedAt])
   @@index([opdVisitId])
   @@index([ipdAdmissionId])
+  @@index([emergencyEncounterId])
 }
 
 model LabRequestItem {
@@ -1566,7 +1569,9 @@ model RadiologyRequest {
 
   appointments RadiologyAppointment[]
 
-  createdAt DateTime @default(now())
+  createdAt            DateTime            @default(now())
+  emergencyEncounter   EmergencyEncounter? @relation(fields: [emergencyEncounterId], references: [id], onDelete: Restrict)
+  emergencyEncounterId String?             @db.Uuid
 
   @@unique([hospitalId, requestNumber])
   @@index([hospitalId, status, requestedAt])
@@ -1575,6 +1580,7 @@ model RadiologyRequest {
   @@index([procedureId, status])
   @@index([opdVisitId])
   @@index([ipdAdmissionId])
+  @@index([emergencyEncounterId])
   @@map("radiology_requests")
 }
 
@@ -1872,6 +1878,8 @@ model EmergencyEncounter {
   userId              String?                       @db.Uuid
   clinicalAssessments EmergencyClinicalAssessment[]
   observations        EmergencyObservation[]
+  labRequests         LabRequest[]
+  radiologyRequests   RadiologyRequest[]
 
   @@unique([hospitalId, encounterNumber])
   @@index([hospitalId, status, arrivedAt])
