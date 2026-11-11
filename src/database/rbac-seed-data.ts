@@ -224,6 +224,27 @@ export const permissions = [
     code: 'ipd.transfers.cancel',
     description: 'Cancel inpatient transfer requests',
   },
+
+  {
+    code: 'ipd.discharge.request',
+    description: 'Create and cancel inpatient discharge requests',
+  },
+  {
+    code: 'ipd.discharge.read',
+    description: 'View inpatient discharge requests',
+  },
+  {
+    code: 'ipd.discharge.approve',
+    description: 'Approve or reject inpatient discharge requests',
+  },
+  {
+    code: 'ipd.discharge.summary.create',
+    description: 'Prepare inpatient discharge summaries',
+  },
+  {
+    code: 'ipd.discharge.summary.read',
+    description: 'View inpatient discharge summaries',
+  },
 ];
 
 export const roles = [
