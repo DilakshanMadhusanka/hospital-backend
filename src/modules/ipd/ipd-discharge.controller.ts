@@ -1,4 +1,3 @@
-
 import {
   Body,
   Controller,
@@ -20,13 +19,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
 import { Permissions } from '../rbac/decorators/permissions.decorator.js';
+import { CompleteIPDDischargeDto } from './dto/complete-ipd-discharge.dto.js';
 
 @Controller('ipd/discharges')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class IpdDischargeController {
-  constructor(
-    private readonly dischargeService: IpdDischargeService,
-  ) {}
+  constructor(private readonly dischargeService: IpdDischargeService) {}
 
   @Post('requests')
   @Permissions('ipd.discharge.request')
@@ -35,11 +33,7 @@ export class IpdDischargeController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreateIPDDischargeRequestDto,
   ) {
-    return this.dischargeService.createRequest(
-      hospitalId,
-      user.id,
-      dto,
-    );
+    return this.dischargeService.createRequest(hospitalId, user.id, dto);
   }
 
   @Get('requests')
@@ -63,11 +57,7 @@ export class IpdDischargeController {
     @Query('hospitalId') hospitalId: string,
     @CurrentUser() user: { id: string },
   ) {
-    return this.dischargeService.getRequestById(
-      requestId,
-      hospitalId,
-      user.id,
-    );
+    return this.dischargeService.getRequestById(requestId, hospitalId, user.id);
   }
 
   @Patch('requests/:requestId/approve')
@@ -77,11 +67,7 @@ export class IpdDischargeController {
     @Query('hospitalId') hospitalId: string,
     @CurrentUser() user: { id: string },
   ) {
-    return this.dischargeService.approveRequest(
-      requestId,
-      hospitalId,
-      user.id,
-    );
+    return this.dischargeService.approveRequest(requestId, hospitalId, user.id);
   }
 
   @Patch('requests/:requestId/reject')
@@ -107,11 +93,7 @@ export class IpdDischargeController {
     @Query('hospitalId') hospitalId: string,
     @CurrentUser() user: { id: string },
   ) {
-    return this.dischargeService.cancelRequest(
-      requestId,
-      hospitalId,
-      user.id,
-    );
+    return this.dischargeService.cancelRequest(requestId, hospitalId, user.id);
   }
 
   @Post('requests/:requestId/summary')
@@ -137,10 +119,31 @@ export class IpdDischargeController {
     @Query('hospitalId') hospitalId: string,
     @CurrentUser() user: { id: string },
   ) {
-    return this.dischargeService.getSummary(
+    return this.dischargeService.getSummary(requestId, hospitalId, user.id);
+  }
+
+  @Patch('requests/:requestId/complete')
+  @Permissions('ipd.discharge.complete')
+  completeDischarge(
+    @Param('requestId') requestId: string,
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CompleteIPDDischargeDto,
+  ) {
+    return this.dischargeService.completeDischarge(
       requestId,
       hospitalId,
       user.id,
+      dto,
     );
+  }
+
+  @Get('history')
+  @Permissions('ipd.discharge.read')
+  getDischargeHistory(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.dischargeService.getDischargeHistory(hospitalId, user.id);
   }
 }

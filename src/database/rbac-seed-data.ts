@@ -245,6 +245,11 @@ export const permissions = [
     code: 'ipd.discharge.summary.read',
     description: 'View inpatient discharge summaries',
   },
+
+  {
+    code: 'ipd.discharge.complete',
+    description: 'Complete final inpatient discharge and release the bed',
+  },
 ];
 
 export const roles = [
