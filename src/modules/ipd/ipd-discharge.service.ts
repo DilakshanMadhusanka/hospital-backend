@@ -407,6 +407,8 @@ export class IpdDischargeService {
     await this.verifyHospitalAccess(userId, hospitalId);
 
     return this.runDischargeTransaction(async (tx) => {
+      const dischargedAt = new Date();
+
       // 1. Find the approved discharge request.
       const request = await tx.iPDDischargeRequest.findFirst({
         where: {
@@ -489,7 +491,7 @@ export class IpdDischargeService {
           releasedAt: null,
         },
         data: {
-          releasedAt: new Date(),
+          releasedAt: dischargedAt,
           releasedById: userId,
         },
       });
@@ -525,8 +527,9 @@ export class IpdDischargeService {
         },
         data: {
           status: 'DISCHARGED',
-          dischargedAt: new Date(),
+          dischargedAt,
           dischargedById: userId,
+          dischargeRemarks: dto.remarks,
         },
       });
 
@@ -560,7 +563,7 @@ export class IpdDischargeService {
         patientId: admission.patientId,
         hospitalId,
         bedId: allocation.bedId,
-        dischargedAt: new Date(),
+        dischargedAt,
         dischargedById: userId,
         remarks: dto.remarks ?? null,
         admissionStatus: 'DISCHARGED',

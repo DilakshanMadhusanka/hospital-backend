@@ -993,6 +993,7 @@ model IPDAdmission {
 
   dischargeSummary      String?
   dischargeInstructions String?
+  dischargeRemarks      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
