@@ -89,6 +89,23 @@ export const permissions = [
     code: 'ipd.clinical-records.read',
     description: 'View inpatient clinical records',
   },
+
+  { code: 'lab.tests.manage', description: 'Manage laboratory test catalogue' },
+  { code: 'lab.tests.read', description: 'View laboratory tests' },
+
+  { code: 'lab.requests.create', description: 'Create laboratory requests' },
+  { code: 'lab.requests.read', description: 'View laboratory requests' },
+
+  { code: 'lab.samples.collect', description: 'Collect laboratory samples' },
+  {
+    code: 'lab.samples.receive',
+    description: 'Receive or reject laboratory samples',
+  },
+
+  { code: 'lab.results.create', description: 'Enter laboratory results' },
+  { code: 'lab.results.verify', description: 'Verify laboratory results' },
+
+  { code: 'lab.reports.read', description: 'View verified laboratory reports' },
 ];
 
 export const roles = [
