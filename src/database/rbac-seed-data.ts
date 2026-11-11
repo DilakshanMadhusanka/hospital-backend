@@ -106,6 +106,38 @@ export const permissions = [
   { code: 'lab.results.verify', description: 'Verify laboratory results' },
 
   { code: 'lab.reports.read', description: 'View verified laboratory reports' },
+
+  {
+    code: 'pharmacy.medicines.manage',
+    description: 'Manage pharmacy medicines',
+  },
+  { code: 'pharmacy.medicines.read', description: 'View pharmacy medicines' },
+
+  {
+    code: 'pharmacy.suppliers.manage',
+    description: 'Manage pharmacy suppliers',
+  },
+  { code: 'pharmacy.suppliers.read', description: 'View pharmacy suppliers' },
+
+  {
+    code: 'pharmacy.purchase-orders.create',
+    description: 'Create medicine purchase orders',
+  },
+  {
+    code: 'pharmacy.stock.receive',
+    description: 'Receive purchased medicine stock',
+  },
+
+  { code: 'pharmacy.inventory.read', description: 'View pharmacy inventory' },
+
+  {
+    code: 'pharmacy.prescriptions.dispense',
+    description: 'Dispense prescribed medicines',
+  },
+  {
+    code: 'pharmacy.dispensing-history.read',
+    description: 'View prescription dispensing history',
+  },
 ];
 
 export const roles = [
