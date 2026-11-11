@@ -15,6 +15,44 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum LabRequestStatus {
+  REQUESTED
+  ACCEPTED
+  IN_PROGRESS
+  PARTIALLY_COMPLETED
+  COMPLETED
+  CANCELLED
+}
+
+enum LabRequestItemStatus {
+  REQUESTED
+  SAMPLE_COLLECTED
+  PROCESSING
+  RESULT_ENTERED
+  VERIFIED
+  REJECTED
+  CANCELLED
+}
+
+enum LabSampleStatus {
+  COLLECTED
+  RECEIVED
+  REJECTED
+  PROCESSED
+}
+
+enum LabResultStatus {
+  DRAFT
+  VERIFIED
+  REJECTED
+}
+
+enum LabPriority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
 enum IPDAdmissionStatus {
   ADMITTED
   DISCHARGED
@@ -190,6 +228,8 @@ model Hospital {
   opdTokenCounters OPDTokenCounter[]
   doctorSchedules  DoctorSchedule[]
   ipdAdmissions    IPDAdmission[]
+  labTests         LabTest[]
+  labRequests      LabRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,6 +261,7 @@ model Department {
   updatedAt       DateTime         @updatedAt
   opdvisits       OPDVisit[]
   doctorSchedules DoctorSchedule[]
+  labRequests     LabRequest[]
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -340,6 +381,16 @@ model User {
 
   ipdObservationsRecorded IPDObservation[] @relation("IPDObservationRecordedBy")
   ipdNursingNotesRecorded IPDNursingNote[] @relation("IPDNursingNoteRecordedBy")
+  labRequests             LabRequest[]
+  labSamples              LabSample[]
+  labResults              LabResult[]
+
+  labRequestsCreated LabRequest[] @relation("LabRequestDoctor")
+
+  labSamplesCollected LabSample[] @relation("LabSampleCollectedBy")
+
+  labResultsEntered  LabResult[] @relation("LabResultEnteredBy")
+  labResultsVerified LabResult[] @relation("LabResultVerifiedBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -477,8 +528,9 @@ model Patient {
   opdVisits      OPDVisit[]
   ipdAdmissions  IPDAdmission[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  labRequests LabRequest[]
 
   @@index([nationalId])
   @@index([lastName, firstName])
@@ -623,6 +675,7 @@ model OPDVisit {
   investigations InvestigationRequest[]
   user           User?                  @relation(fields: [userId], references: [id])
   userId         String?                @db.Uuid
+  labRequests    LabRequest[]
 
   @@unique([hospitalId, departmentId, visitDate, tokenNumber])
   @@index([hospitalId, departmentId, visitDate, status])
@@ -806,6 +859,7 @@ model IPDAdmission {
   bedAllocations IPDBedAllocation[]
   observations   IPDObservation[]
   nursingNotes   IPDNursingNote[]
+  labRequests    LabRequest[]
 
   @@index([hospitalId, status])
   @@index([patientId])
@@ -873,6 +927,141 @@ model IPDNursingNote {
   recordedBy User         @relation("IPDNursingNoteRecordedBy", fields: [recordedById], references: [id])
 
   @@index([admissionId, recordedAt])
+}
+
+model LabTest {
+  id         String @id @default(uuid())
+  hospitalId String
+
+  code           String
+  name           String
+  description    String?
+  specimenType   String
+  unit           String?
+  referenceRange String?
+  price          Decimal? @db.Decimal(10, 2)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hospital     Hospital         @relation(fields: [hospitalId], references: [id])
+  requestItems LabRequestItem[]
+
+  @@unique([hospitalId, code])
+  @@index([hospitalId, isActive])
+}
+
+model LabRequest {
+  id            String @id @default(uuid())
+  requestNumber String @unique
+
+  patientId    String
+  hospitalId   String
+  departmentId String
+
+  opdVisitId     String?
+  ipdAdmissionId String?
+
+  requestedById String
+
+  priority LabPriority      @default(ROUTINE)
+  status   LabRequestStatus @default(REQUESTED)
+
+  clinicalNotes String?
+  requestedAt   DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  patient    Patient    @relation(fields: [patientId], references: [id])
+  hospital   Hospital   @relation(fields: [hospitalId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  opdVisit     OPDVisit?     @relation(fields: [opdVisitId], references: [id])
+  ipdAdmission IPDAdmission? @relation(fields: [ipdAdmissionId], references: [id])
+
+  requestedBy User @relation("LabRequestDoctor", fields: [requestedById], references: [id])
+
+  items  LabRequestItem[]
+  user   User?            @relation(fields: [userId], references: [id])
+  userId String?          @db.Uuid
+
+  @@index([hospitalId, status, requestedAt])
+  @@index([patientId, requestedAt])
+  @@index([opdVisitId])
+  @@index([ipdAdmissionId])
+}
+
+model LabRequestItem {
+  id String @id @default(uuid())
+
+  requestId String
+  testId    String
+
+  status LabRequestItemStatus @default(REQUESTED)
+
+  sample LabSample?
+  result LabResult?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request LabRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  test    LabTest    @relation(fields: [testId], references: [id])
+
+  @@index([requestId, status])
+  @@index([testId])
+}
+
+model LabSample {
+  id           String @id @default(uuid())
+  sampleNumber String @unique
+
+  requestItemId String @unique
+
+  specimenType String
+  status       LabSampleStatus @default(COLLECTED)
+
+  collectedById String
+  collectedAt   DateTime @default(now())
+
+  receivedAt      DateTime?
+  rejectionReason String?
+
+  requestItem LabRequestItem @relation(fields: [requestItemId], references: [id])
+  collectedBy User           @relation("LabSampleCollectedBy", fields: [collectedById], references: [id])
+  user        User?          @relation(fields: [userId], references: [id])
+  userId      String?        @db.Uuid
+
+  @@index([status, collectedAt])
+}
+
+model LabResult {
+  id            String @id @default(uuid())
+  requestItemId String @unique
+
+  resultValue    String
+  unit           String?
+  referenceRange String?
+  interpretation String?
+  remarks        String?
+
+  status LabResultStatus @default(DRAFT)
+
+  enteredById  String
+  verifiedById String?
+
+  enteredAt  DateTime  @default(now())
+  verifiedAt DateTime?
+
+  requestItem LabRequestItem @relation(fields: [requestItemId], references: [id])
+
+  enteredBy  User    @relation("LabResultEnteredBy", fields: [enteredById], references: [id])
+  verifiedBy User?   @relation("LabResultVerifiedBy", fields: [verifiedById], references: [id])
+  user       User?   @relation(fields: [userId], references: [id])
+  userId     String? @db.Uuid
+
+  @@index([status, enteredAt])
 }
 
 // ======================================================
