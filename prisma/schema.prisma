@@ -20,6 +20,7 @@ enum IPDDischargeStatus {
   APPROVED
   REJECTED
   CANCELLED
+  COMPLETED
 }
 
 enum IPDTransferStatus {
@@ -531,6 +532,7 @@ model User {
   ipdDischargeRequestsCreated   IPDDischargeRequest[]  @relation("IPDDischargeRequester")
   ipdDischargeRequestsReviewed  IPDDischargeRequest[]  @relation("IPDDischargeReviewer")
   ipdDischargeSummariesPrepared IPDDischargeSummary[]  @relation("IPDDischargeSummaryPreparer")
+  ipdAdmissionsDischarged       IPDAdmission[]         @relation("IPDAdmissionDischargedBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1009,6 +1011,10 @@ model IPDAdmission {
   radiologyRequests RadiologyRequest[]
   transfers         IPDTransfer[]
   dischargeRequests IPDDischargeRequest[]
+
+  dischargedAt   DateTime?
+  dischargedById String?   @db.Uuid
+  dischargedBy   User?     @relation("IPDAdmissionDischargedBy", fields: [dischargedById], references: [id], onDelete: Restrict)
 
   @@index([hospitalId, status])
   @@index([patientId])
