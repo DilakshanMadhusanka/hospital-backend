@@ -15,6 +15,35 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum EmergencyArrivalMode {
+  WALK_IN
+  AMBULANCE
+  POLICE
+  HOSPITAL_REFERRAL
+  OTHER
+}
+
+enum EmergencyEncounterStatus {
+  REGISTERED
+  TRIAGED
+  WAITING
+  IN_TREATMENT
+  ADMITTED
+  TRANSFERRED
+  DISCHARGED
+  LEFT_WITHOUT_BEING_SEEN
+  DECEASED
+  CANCELLED
+}
+
+enum EmergencyTriageCategory {
+  RESUSCITATION
+  EMERGENCY
+  URGENT
+  LESS_URGENT
+  NON_URGENT
+}
+
 enum IPDDischargeStatus {
   REQUESTED
   APPROVED
@@ -332,14 +361,15 @@ model Hospital {
   radiologyAppointments RadiologyAppointment[]
   radiologyReports      RadiologyReport[]
 
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  medicines         Medicine[]
-  suppliers         Supplier[]
-  purchaseOrders    PurchaseOrder[]
-  medicineBatches   MedicineBatch[]
-  stockMovements    StockMovement[]
-  pharmacyDispenses PharmacyDispense[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  medicines           Medicine[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  medicineBatches     MedicineBatch[]
+  stockMovements      StockMovement[]
+  pharmacyDispenses   PharmacyDispense[]
+  emergencyEncounters EmergencyEncounter[]
 
   @@index([district])
   @@index([type, status])
@@ -373,11 +403,12 @@ model Department {
   imagingEquipment    ImagingEquipment[]
   radiologyRequests   RadiologyRequest[]
 
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  opdvisits       OPDVisit[]
-  doctorSchedules DoctorSchedule[]
-  labRequests     LabRequest[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  opdvisits           OPDVisit[]
+  doctorSchedules     DoctorSchedule[]
+  labRequests         LabRequest[]
+  emergencyEncounters EmergencyEncounter[]
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -533,6 +564,10 @@ model User {
   ipdDischargeRequestsReviewed  IPDDischargeRequest[]  @relation("IPDDischargeReviewer")
   ipdDischargeSummariesPrepared IPDDischargeSummary[]  @relation("IPDDischargeSummaryPreparer")
   ipdAdmissionsDischarged       IPDAdmission[]         @relation("IPDAdmissionDischargedBy")
+  emergencyEncounters           EmergencyEncounter[]
+  emergencyTriages              EmergencyTriage[]
+  emergencyEncountersRegistered EmergencyEncounter[]   @relation("EmergencyEncounterRegistrar")
+  emergencyTriagesAssessed      EmergencyTriage[]      @relation("EmergencyTriageAssessor")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -670,10 +705,11 @@ model Patient {
   opdVisits      OPDVisit[]
   ipdAdmissions  IPDAdmission[]
 
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  labRequests       LabRequest[]
-  radiologyRequests RadiologyRequest[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  labRequests         LabRequest[]
+  radiologyRequests   RadiologyRequest[]
+  emergencyEncounters EmergencyEncounter[]
 
   @@index([nationalId])
   @@index([lastName, firstName])
@@ -1776,6 +1812,82 @@ model IPDDischargeSummary {
   @@index([hospitalId, preparedAt])
   @@index([preparedById])
   @@map("ipd_discharge_summaries")
+}
+
+model EmergencyEncounter {
+  id           String  @id @default(uuid()) @db.Uuid
+  hospitalId   String  @db.Uuid
+  departmentId String  @db.Uuid
+  patientId    String? @db.Uuid
+
+  encounterNumber  String
+  arrivalMode      EmergencyArrivalMode @default(WALK_IN)
+  arrivalSource    String?
+  referralHospital String?
+
+  // Details used when the patient's identity is not yet known.
+  isUnknownPatient     Boolean @default(false)
+  temporaryPatientName String?
+  temporaryAge         Int?
+  temporaryGender      String?
+  identifyingNotes     String?
+
+  chiefComplaint String?
+  arrivedAt      DateTime @default(now())
+  registeredById String   @db.Uuid
+
+  status EmergencyEncounterStatus @default(REGISTERED)
+
+  hospital     Hospital   @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  patient      Patient?   @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  registeredBy User       @relation("EmergencyEncounterRegistrar", fields: [registeredById], references: [id], onDelete: Restrict)
+
+  triages EmergencyTriage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@unique([hospitalId, encounterNumber])
+  @@index([hospitalId, status, arrivedAt])
+  @@index([hospitalId, departmentId, arrivedAt])
+  @@index([patientId, arrivedAt])
+  @@map("emergency_encounters")
+}
+
+model EmergencyTriage {
+  id             String                  @id @default(uuid()) @db.Uuid
+  encounterId    String                  @db.Uuid
+  category       EmergencyTriageCategory
+  chiefComplaint String
+  symptoms       String?
+  triageNotes    String?
+
+  // Initial clinical observations
+  temperatureC     Float?
+  systolicBP       Int?
+  diastolicBP      Int?
+  pulseRate        Int?
+  respiratoryRate  Int?
+  oxygenSaturation Float?
+  painScore        Int?
+
+  assessedById String   @db.Uuid
+  assessedAt   DateTime @default(now())
+
+  encounter  EmergencyEncounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  assessedBy User               @relation("EmergencyTriageAssessor", fields: [assessedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@index([encounterId, assessedAt])
+  @@index([category, assessedAt])
+  @@index([assessedById, assessedAt])
+  @@map("emergency_triages")
 }
 
 // ======================================================

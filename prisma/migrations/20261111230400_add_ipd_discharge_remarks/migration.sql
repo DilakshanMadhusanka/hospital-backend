@@ -1,2 +1,2 @@
 ALTER TABLE "IPDAdmission"
-ADD COLUMN "dischargeRemarks" TEXT;
+ADD COLUMN IF NOT EXISTS "dischargeRemarks" TEXT;
