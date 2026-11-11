@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 
@@ -15,6 +16,10 @@ import { TransferBedDto } from './dto/transfer-bed.dto.js';
 import { CreateObservationDto } from './dto/create-observation.dto.js';
 import { CreateNursingNoteDto } from './dto/create-nursing-note.dto.js';
 import { DischargePatientDto } from './dto/discharge-patient.dto.js';
+
+import { BedStatus, IPDAdmissionStatus, Prisma } from '@prisma/client';
+
+import { TransferIPDBedDto } from './dto/transfer-ipd-bed.dto.js';
 
 @Injectable()
 export class IpdService {
@@ -94,14 +99,13 @@ export class IpdService {
       );
     }
 
-    const patientRegistration =
-      await this.prisma.hospitalPatient.findFirst({
-        where: {
-          patientId: dto.patientId,
-          hospitalId: dto.hospitalId,
-          status: 'ACTIVE',
-        },
-      });
+    const patientRegistration = await this.prisma.hospitalPatient.findFirst({
+      where: {
+        patientId: dto.patientId,
+        hospitalId: dto.hospitalId,
+        status: 'ACTIVE',
+      },
+    });
 
     if (!patientRegistration) {
       throw new BadRequestException(
@@ -134,11 +138,7 @@ export class IpdService {
   }
 
   // 2. Allocate a bed
-  async allocateBed(
-    admissionId: string,
-    dto: AllocateBedDto,
-    userId: string,
-  ) {
+  async allocateBed(admissionId: string, dto: AllocateBedDto, userId: string) {
     const admission = await this.getAdmission(admissionId);
 
     if (admission.status !== 'ADMITTED') {
@@ -161,9 +161,7 @@ export class IpdService {
     });
 
     if (!bed) {
-      throw new NotFoundException(
-        'Bed not found in this hospital',
-      );
+      throw new NotFoundException('Bed not found in this hospital');
     }
 
     if (bed.status !== 'AVAILABLE') {
@@ -203,111 +201,97 @@ export class IpdService {
   }
 
   // 3. Transfer patient to another bed
-  async transferBed(
-    admissionId: string,
-    dto: TransferBedDto,
-    userId: string,
-  ) {
-    const admission = await this.getAdmission(admissionId);
+  // async transferBed(admissionId: string, dto: TransferBedDto, userId: string) {
+  //   const admission = await this.getAdmission(admissionId);
 
-    if (admission.status !== 'ADMITTED') {
-      throw new BadRequestException(
-        'Only active admissions can be transferred',
-      );
-    }
+  //   if (admission.status !== 'ADMITTED') {
+  //     throw new BadRequestException(
+  //       'Only active admissions can be transferred',
+  //     );
+  //   }
 
-    const currentAllocation = admission.bedAllocations[0];
+  //   const currentAllocation = admission.bedAllocations[0];
 
-    if (!currentAllocation) {
-      throw new BadRequestException(
-        'Patient does not currently have an allocated bed',
-      );
-    }
+  //   if (!currentAllocation) {
+  //     throw new BadRequestException(
+  //       'Patient does not currently have an allocated bed',
+  //     );
+  //   }
 
-    if (currentAllocation.bedId === dto.newBedId) {
-      throw new BadRequestException(
-        'Patient is already allocated to this bed',
-      );
-    }
+  //   if (currentAllocation.bedId === dto.newBedId) {
+  //     throw new BadRequestException('Patient is already allocated to this bed');
+  //   }
 
-    const newBed = await this.prisma.bed.findFirst({
-      where: {
-        id: dto.newBedId,
-        hospitalId: admission.hospitalId,
-      },
-    });
+  //   const newBed = await this.prisma.bed.findFirst({
+  //     where: {
+  //       id: dto.newBedId,
+  //       hospitalId: admission.hospitalId,
+  //     },
+  //   });
 
-    if (!newBed) {
-      throw new NotFoundException(
-        'Destination bed not found in this hospital',
-      );
-    }
+  //   if (!newBed) {
+  //     throw new NotFoundException('Destination bed not found in this hospital');
+  //   }
 
-    if (newBed.status !== 'AVAILABLE') {
-      throw new ConflictException(
-        'Destination bed is not available',
-      );
-    }
+  //   if (newBed.status !== 'AVAILABLE') {
+  //     throw new ConflictException('Destination bed is not available');
+  //   }
 
-    return this.prisma.$transaction(async (tx) => {
-      const destinationUpdated = await tx.bed.updateMany({
-        where: {
-          id: dto.newBedId,
-          hospitalId: admission.hospitalId,
-          status: 'AVAILABLE',
-        },
-        data: { status: 'OCCUPIED' },
-      });
+  //   return this.prisma.$transaction(async (tx) => {
+  //     const destinationUpdated = await tx.bed.updateMany({
+  //       where: {
+  //         id: dto.newBedId,
+  //         hospitalId: admission.hospitalId,
+  //         status: 'AVAILABLE',
+  //       },
+  //       data: { status: 'OCCUPIED' },
+  //     });
 
-      if (destinationUpdated.count !== 1) {
-        throw new ConflictException(
-          'Destination bed is no longer available',
-        );
-      }
+  //     if (destinationUpdated.count !== 1) {
+  //       throw new ConflictException('Destination bed is no longer available');
+  //     }
 
-      const released = await tx.iPDBedAllocation.updateMany({
-        where: {
-          id: currentAllocation.id,
-          releasedAt: null,
-        },
-        data: {
-          releasedAt: new Date(),
-          releasedById: userId,
-        },
-      });
+  //     const released = await tx.iPDBedAllocation.updateMany({
+  //       where: {
+  //         id: currentAllocation.id,
+  //         releasedAt: null,
+  //       },
+  //       data: {
+  //         releasedAt: new Date(),
+  //         releasedById: userId,
+  //       },
+  //     });
 
-      if (released.count !== 1) {
-        throw new ConflictException(
-          'Current bed allocation has already changed',
-        );
-      }
+  //     if (released.count !== 1) {
+  //       throw new ConflictException(
+  //         'Current bed allocation has already changed',
+  //       );
+  //     }
 
-      const oldBedUpdated = await tx.bed.updateMany({
-        where: {
-          id: currentAllocation.bedId,
-          status: 'OCCUPIED',
-        },
-        data: { status: 'AVAILABLE' },
-      });
+  //     const oldBedUpdated = await tx.bed.updateMany({
+  //       where: {
+  //         id: currentAllocation.bedId,
+  //         status: 'OCCUPIED',
+  //       },
+  //       data: { status: 'AVAILABLE' },
+  //     });
 
-      if (oldBedUpdated.count !== 1) {
-        throw new ConflictException(
-          'Could not release the previous bed',
-        );
-      }
+  //     if (oldBedUpdated.count !== 1) {
+  //       throw new ConflictException('Could not release the previous bed');
+  //     }
 
-      return tx.iPDBedAllocation.create({
-        data: {
-          admissionId,
-          bedId: dto.newBedId,
-          allocatedById: userId,
-        },
-        include: {
-          bed: { include: { ward: true } },
-        },
-      });
-    });
-  }
+  //     return tx.iPDBedAllocation.create({
+  //       data: {
+  //         admissionId,
+  //         bedId: dto.newBedId,
+  //         allocatedById: userId,
+  //       },
+  //       include: {
+  //         bed: { include: { ward: true } },
+  //       },
+  //     });
+  //   });
+  // }
 
   // 4. Record patient observations
   async createObservation(
@@ -373,19 +357,16 @@ export class IpdService {
     const admission = await this.getAdmission(admissionId);
 
     if (admission.status !== 'ADMITTED') {
-      throw new BadRequestException(
-        'This admission is not active',
-      );
+      throw new BadRequestException('This admission is not active');
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const activeAllocation =
-        await tx.iPDBedAllocation.findFirst({
-          where: {
-            admissionId,
-            releasedAt: null,
-          },
-        });
+      const activeAllocation = await tx.iPDBedAllocation.findFirst({
+        where: {
+          admissionId,
+          releasedAt: null,
+        },
+      });
 
       if (activeAllocation) {
         const released = await tx.iPDBedAllocation.updateMany({
@@ -400,9 +381,7 @@ export class IpdService {
         });
 
         if (released.count !== 1) {
-          throw new ConflictException(
-            'Bed allocation has already changed',
-          );
+          throw new ConflictException('Bed allocation has already changed');
         }
 
         const bedReleased = await tx.bed.updateMany({
@@ -414,9 +393,7 @@ export class IpdService {
         });
 
         if (bedReleased.count !== 1) {
-          throw new ConflictException(
-            'Could not release the allocated bed',
-          );
+          throw new ConflictException('Could not release the allocated bed');
         }
       }
 
@@ -488,10 +465,7 @@ export class IpdService {
       include: {
         ward: true,
       },
-      orderBy: [
-        { ward: { name: 'asc' } },
-        { bedNumber: 'asc' },
-      ],
+      orderBy: [{ ward: { name: 'asc' } }, { bedNumber: 'asc' }],
     });
   }
 
@@ -521,5 +495,211 @@ export class IpdService {
     ]);
 
     return { observations, nursingNotes };
+  }
+
+  async transferBed(
+    admissionId: string,
+    hospitalId: string,
+    userId: string,
+    dto: TransferIPDBedDto,
+  ) {
+    // Verify hospital assignment.
+    const assignment = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        hospitalId,
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException('You do not have access to this hospital.');
+    }
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            // Find the current active allocation.
+            const currentAllocation = await tx.iPDBedAllocation.findFirst({
+              where: {
+                admissionId,
+                releasedAt: null,
+              },
+              include: {
+                admission: true,
+                bed: {
+                  include: {
+                    ward: true,
+                  },
+                },
+              },
+            });
+
+            if (!currentAllocation) {
+              throw new NotFoundException(
+                'No active bed allocation exists for this admission.',
+              );
+            }
+
+            const admission = currentAllocation.admission;
+
+            if (admission.hospitalId !== hospitalId) {
+              throw new ForbiddenException(
+                'This admission does not belong to the selected hospital.',
+              );
+            }
+
+            if (admission.status !== IPDAdmissionStatus.ADMITTED) {
+              throw new BadRequestException(
+                'Only currently admitted patients can be transferred.',
+              );
+            }
+
+            if (currentAllocation.bedId === dto.toBedId) {
+              throw new BadRequestException(
+                'The patient is already allocated to this bed.',
+              );
+            }
+
+            // Find the target bed within the same hospital.
+            const targetBed = await tx.bed.findFirst({
+              where: {
+                id: dto.toBedId,
+                hospitalId,
+              },
+              include: {
+                ward: true,
+              },
+            });
+
+            if (!targetBed) {
+              throw new NotFoundException(
+                'Target bed not found in this hospital.',
+              );
+            }
+
+            if (targetBed.status !== BedStatus.AVAILABLE) {
+              throw new ConflictException('The selected bed is not available.');
+            }
+
+            // Check that there is no active allocation for this bed.
+            const existingAllocation = await tx.iPDBedAllocation.findFirst({
+              where: {
+                bedId: targetBed.id,
+                releasedAt: null,
+              },
+            });
+
+            if (existingAllocation) {
+              throw new ConflictException(
+                'The selected bed already has an active allocation.',
+              );
+            }
+
+            const now = new Date();
+
+            // 1. Release the previous allocation.
+            const released = await tx.iPDBedAllocation.updateMany({
+              where: {
+                id: currentAllocation.id,
+                releasedAt: null,
+              },
+              data: {
+                releasedAt: now,
+                releasedById: userId,
+              },
+            });
+
+            if (released.count !== 1) {
+              throw new ConflictException(
+                'The current bed allocation has already changed.',
+              );
+            }
+
+            // 2. Release the previous bed.
+            await tx.bed.update({
+              where: {
+                id: currentAllocation.bedId,
+              },
+              data: {
+                status: BedStatus.AVAILABLE,
+              },
+            });
+
+            // 3. Claim the target bed conditionally.
+            const claimed = await tx.bed.updateMany({
+              where: {
+                id: targetBed.id,
+                hospitalId,
+                status: BedStatus.AVAILABLE,
+              },
+              data: {
+                status: BedStatus.OCCUPIED,
+              },
+            });
+
+            if (claimed.count !== 1) {
+              throw new ConflictException(
+                'The target bed was allocated by another user.',
+              );
+            }
+
+            // 4. Create the new allocation.
+            const newAllocation = await tx.iPDBedAllocation.create({
+              data: {
+                admissionId,
+                bedId: targetBed.id,
+                allocatedById: userId,
+                allocatedAt: now,
+              },
+              include: {
+                bed: {
+                  include: {
+                    ward: true,
+                  },
+                },
+                admission: true,
+              },
+            });
+
+            return {
+              message: 'Patient bed transferred successfully.',
+              previousBed: {
+                bedId: currentAllocation.bed.id,
+                bedNumber: currentAllocation.bed.bedNumber,
+                ward: currentAllocation.bed.ward.name,
+                releasedAt: now,
+              },
+              newBed: {
+                bedId: targetBed.id,
+                bedNumber: targetBed.bedNumber,
+                ward: targetBed.ward.name,
+                allocatedAt: now,
+              },
+              allocation: newAllocation,
+            };
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (error) {
+        const prismaError = error as { code?: string };
+
+        if (prismaError.code === 'P2034' && attempt < 3) {
+          continue;
+        }
+
+        if (prismaError.code === 'P2034') {
+          throw new ServiceUnavailableException(
+            'The bed allocation is being modified. Please retry.',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new ServiceUnavailableException('Unable to transfer the patient.');
   }
 }

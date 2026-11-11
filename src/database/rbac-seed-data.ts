@@ -185,6 +185,11 @@ export const permissions = [
     code: 'radiology.images.manage',
     description: 'Manage radiology image records',
   },
+
+  {
+    code: 'ipd.beds.transfer',
+    description: 'Transfer admitted patients between beds',
+  },
 ];
 
 export const roles = [

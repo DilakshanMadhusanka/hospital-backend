@@ -7,13 +7,14 @@ import {
   Post,
   Query,
   UseGuards,
+  Patch
 } from '@nestjs/common';
 
 import { IpdService } from './ipd.service.js';
 
 import { CreateAdmissionDto } from './dto/create-admission.dto.js';
 import { AllocateBedDto } from './dto/allocate-bed.dto.js';
-import { TransferBedDto } from './dto/transfer-bed.dto.js';
+import { TransferIPDBedDto } from './dto/transfer-ipd-bed.dto.js';
 import { CreateObservationDto } from './dto/create-observation.dto.js';
 import { CreateNursingNoteDto } from './dto/create-nursing-note.dto.js';
 import { DischargePatientDto } from './dto/discharge-patient.dto.js';
@@ -61,25 +62,28 @@ export class IpdController {
     @Body() dto: AllocateBedDto,
     @CurrentUser() user: { id: string },
   ) {
-    return this.ipdService.allocateBed(
-      admissionId,
-      dto,
-      user.id,
-    );
+    return this.ipdService.allocateBed(admissionId, dto, user.id);
   }
 
-  @Post('admissions/:admissionId/transfer-bed')
+  // @Post('admissions/:admissionId/transfer-bed')
+  // @Permissions('ipd.beds.transfer')
+  // transferBed(
+  //   @Param('admissionId', ParseUUIDPipe) admissionId: string,
+  //   @Body() dto: TransferBedDto,
+  //   @CurrentUser() user: { id: string },
+  // ) {
+  //   return this.ipdService.transferBed(admissionId, dto, user.id);
+  // }
+
+  @Patch('admissions/:admissionId/transfer-bed')
   @Permissions('ipd.beds.transfer')
   transferBed(
-    @Param('admissionId', ParseUUIDPipe) admissionId: string,
-    @Body() dto: TransferBedDto,
+    @Param('admissionId') admissionId: string,
+    @Query('hospitalId') hospitalId: string,
     @CurrentUser() user: { id: string },
+    @Body() dto: TransferIPDBedDto,
   ) {
-    return this.ipdService.transferBed(
-      admissionId,
-      dto,
-      user.id,
-    );
+    return this.ipdService.transferBed(admissionId, hospitalId, user.id, dto);
   }
 
   @Get('beds/available')
@@ -98,11 +102,7 @@ export class IpdController {
     @Body() dto: CreateObservationDto,
     @CurrentUser() user: { id: string },
   ) {
-    return this.ipdService.createObservation(
-      admissionId,
-      dto,
-      user.id,
-    );
+    return this.ipdService.createObservation(admissionId, dto, user.id);
   }
 
   @Post('admissions/:admissionId/nursing-notes')
@@ -112,11 +112,7 @@ export class IpdController {
     @Body() dto: CreateNursingNoteDto,
     @CurrentUser() user: { id: string },
   ) {
-    return this.ipdService.createNursingNote(
-      admissionId,
-      dto,
-      user.id,
-    );
+    return this.ipdService.createNursingNote(admissionId, dto, user.id);
   }
 
   @Post('admissions/:admissionId/discharge')
@@ -126,18 +122,12 @@ export class IpdController {
     @Body() dto: DischargePatientDto,
     @CurrentUser() user: { id: string },
   ) {
-    return this.ipdService.dischargePatient(
-      admissionId,
-      dto,
-      user.id,
-    );
+    return this.ipdService.dischargePatient(admissionId, dto, user.id);
   }
 
   @Get('admissions/:admissionId/clinical-records')
   @Permissions('ipd.clinical-records.read')
-  getClinicalRecords(
-    @Param('admissionId', ParseUUIDPipe) admissionId: string,
-  ) {
+  getClinicalRecords(@Param('admissionId', ParseUUIDPipe) admissionId: string) {
     return this.ipdService.getClinicalRecords(admissionId);
   }
 }
