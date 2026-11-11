@@ -15,6 +15,14 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum IPDTransferStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
 enum ImagingModality {
   XRAY
   ULTRASOUND
@@ -383,8 +391,11 @@ model Ward {
 
   beds Bed[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ipdtransfers     IPDTransfer[] @relation("IPDTransferWard")
+  ipdTransfersFrom IPDTransfer[] @relation("IPDTransferFromWard")
+  ipdTransfersTo   IPDTransfer[] @relation("IPDTransferToWard")
 
   @@unique([hospitalId, code])
   @@index([departmentId])
@@ -406,8 +417,11 @@ model Bed {
   hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   ward     Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ipdtransfers     IPDTransfer[] @relation("IPDTransferBed")
+  ipdTransfersFrom IPDTransfer[] @relation("IPDTransferFromBed")
+  ipdTransfersTo   IPDTransfer[] @relation("IPDTransferToBed")
 
   @@unique([wardId, bedNumber])
   @@index([hospitalId, status])
@@ -503,6 +517,10 @@ model User {
   radiologyReportsCreated       RadiologyReport[]      @relation("RadiologyReportAuthor")
   radiologyReportsVerified      RadiologyReport[]      @relation("RadiologyReportVerifier")
   radiologyImagesUploaded       RadiologyImage[]       @relation("RadiologyImageUploader")
+  ipdtransfers                  IPDTransfer[]          @relation("IPDTransferUser")
+  ipdTransfersRequested         IPDTransfer[]          @relation("IPDTransferRequester")
+  ipdTransfersApproved          IPDTransfer[]          @relation("IPDTransferApprover")
+  ipdTransfersCompleted         IPDTransfer[]          @relation("IPDTransferCompleter")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -979,6 +997,7 @@ model IPDAdmission {
   nursingNotes      IPDNursingNote[]
   labRequests       LabRequest[]
   radiologyRequests RadiologyRequest[]
+  transfers         IPDTransfer[]
 
   @@index([hospitalId, status])
   @@index([patientId])
@@ -1606,6 +1625,69 @@ model RadiologyImage {
   @@index([hospitalId, reportId])
   @@index([uploadedById, createdAt])
   @@map("radiology_images")
+}
+
+model IPDTransfer {
+  id String @id @default(uuid()) @db.Uuid
+
+  // IPDAdmission.id is String without @db.Uuid
+  // in the existing schema, so this field must match it.
+  admissionId String
+
+  // Keep this scalar consistent with the existing
+  // IPDAdmission.hospitalId type.
+  hospitalId String
+
+  fromWardId String @db.Uuid
+  toWardId   String @db.Uuid
+
+  fromBedId String @db.Uuid
+  toBedId   String @db.Uuid
+
+  reason        String
+  clinicalNotes String?
+
+  status IPDTransferStatus @default(REQUESTED)
+
+  requestedById String  @db.Uuid
+  approvedById  String? @db.Uuid
+  completedById String? @db.Uuid
+
+  rejectionReason String?
+
+  requestedAt DateTime  @default(now())
+  approvedAt  DateTime?
+  completedAt DateTime?
+  rejectedAt  DateTime?
+  cancelledAt DateTime?
+
+  admission IPDAdmission @relation(fields: [admissionId], references: [id], onDelete: Restrict)
+
+  fromWard Ward @relation("IPDTransferFromWard", fields: [fromWardId], references: [id], onDelete: Restrict)
+  toWard   Ward @relation("IPDTransferToWard", fields: [toWardId], references: [id], onDelete: Restrict)
+
+  fromBed Bed @relation("IPDTransferFromBed", fields: [fromBedId], references: [id], onDelete: Restrict)
+  toBed   Bed @relation("IPDTransferToBed", fields: [toBedId], references: [id], onDelete: Restrict)
+
+  requestedBy User  @relation("IPDTransferRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User? @relation("IPDTransferApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  completedBy User? @relation("IPDTransferCompleter", fields: [completedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ward      Ward?    @relation("IPDTransferWard", fields: [wardId], references: [id])
+  wardId    String?  @db.Uuid
+  bed       Bed?     @relation("IPDTransferBed", fields: [bedId], references: [id])
+  bedId     String?  @db.Uuid
+  user      User?    @relation("IPDTransferUser", fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@index([hospitalId, status, requestedAt])
+  @@index([admissionId, requestedAt])
+  @@index([fromWardId])
+  @@index([toWardId])
+  @@index([requestedById, requestedAt])
+  @@map("ipd_transfers")
 }
 
 // ======================================================
