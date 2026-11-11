@@ -263,6 +263,23 @@ export const permissions = [
     code: 'emergency.triage.create',
     description: 'Perform emergency patient triage',
   },
+
+  {
+    code: 'emergency.queue.read',
+    description: 'View the emergency department queue',
+  },
+  {
+    code: 'emergency.queue.manage',
+    description: 'Call patients from the emergency queue',
+  },
+  {
+    code: 'emergency.staff.assign',
+    description: 'Assign doctors and nurses to emergency encounters',
+  },
+  {
+    code: 'emergency.treatment.start',
+    description: 'Start emergency patient treatment',
+  },
 ];
 
 export const roles = [

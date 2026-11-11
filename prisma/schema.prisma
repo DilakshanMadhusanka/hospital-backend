@@ -27,6 +27,7 @@ enum EmergencyEncounterStatus {
   REGISTERED
   TRIAGED
   WAITING
+  CALLED
   IN_TREATMENT
   ADMITTED
   TRANSFERRED
@@ -568,6 +569,9 @@ model User {
   emergencyTriages              EmergencyTriage[]
   emergencyEncountersRegistered EmergencyEncounter[]   @relation("EmergencyEncounterRegistrar")
   emergencyTriagesAssessed      EmergencyTriage[]      @relation("EmergencyTriageAssessor")
+
+  emergencyEncountersAsDoctor EmergencyEncounter[] @relation("EmergencyAssignedDoctor")
+  emergencyEncountersAsNurse  EmergencyEncounter[] @relation("EmergencyAssignedNurse")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1845,6 +1849,16 @@ model EmergencyEncounter {
 
   triages EmergencyTriage[]
 
+  assignedDoctorId String? @db.Uuid
+  assignedNurseId  String? @db.Uuid
+
+  assignedDoctor User? @relation("EmergencyAssignedDoctor",fields: [assignedDoctorId],references: [id],onDelete: Restrict)
+
+  assignedNurse User? @relation("EmergencyAssignedNurse",fields: [assignedNurseId],references: [id],onDelete: Restrict)
+
+  calledAt           DateTime?
+  treatmentStartedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User?    @relation(fields: [userId], references: [id])
@@ -1853,6 +1867,8 @@ model EmergencyEncounter {
   @@unique([hospitalId, encounterNumber])
   @@index([hospitalId, status, arrivedAt])
   @@index([hospitalId, departmentId, arrivedAt])
+  @@index([hospitalId, status, assignedDoctorId])
+  @@index([hospitalId, status, assignedNurseId])
   @@index([patientId, arrivedAt])
   @@map("emergency_encounters")
 }

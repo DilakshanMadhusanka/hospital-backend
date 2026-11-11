@@ -1,15 +1,19 @@
-
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 
 import {
+  EmergencyTriageCategory,
   EmergencyEncounterStatus,
   Prisma,
 } from '@prisma/client';
+
+import { AssignEmergencyStaffDto } from './dto/assign-emergency-staff.dto.js';
+import { QueryEmergencyQueueDto } from './dto/query-emergency-queue.dto.js';
 
 import { randomBytes } from 'crypto';
 
@@ -22,10 +26,7 @@ import { CreateEmergencyTriageDto } from './dto/create-emergency-triage.dto.js';
 export class EmergencyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async verifyHospitalAccess(
-    hospitalId: string,
-    userId: string,
-  ) {
+  private async verifyHospitalAccess(hospitalId: string, userId: string) {
     const assignment = await this.prisma.userRole.findFirst({
       where: {
         hospitalId,
@@ -34,9 +35,7 @@ export class EmergencyService {
     });
 
     if (!assignment) {
-      throw new ForbiddenException(
-        'You do not have access to this hospital.',
-      );
+      throw new ForbiddenException('You do not have access to this hospital.');
     }
   }
 
@@ -211,11 +210,7 @@ export class EmergencyService {
     });
   }
 
-  async getEncounter(
-    hospitalId: string,
-    userId: string,
-    encounterId: string,
-  ) {
+  async getEncounter(hospitalId: string, userId: string, encounterId: string) {
     await this.verifyHospitalAccess(hospitalId, userId);
 
     const encounter = await this.prisma.emergencyEncounter.findFirst({
@@ -239,5 +234,280 @@ export class EmergencyService {
     }
 
     return encounter;
+  }
+
+  private readonly triagePriority: Record<EmergencyTriageCategory, number> = {
+    RESUSCITATION: 1,
+    EMERGENCY: 2,
+    URGENT: 3,
+    LESS_URGENT: 4,
+    NON_URGENT: 5,
+  };
+
+  async getEmergencyQueue(
+    hospitalId: string,
+    userId: string,
+    query: QueryEmergencyQueueDto,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    const encounters = await this.prisma.emergencyEncounter.findMany({
+      where: {
+        hospitalId,
+        ...(query.departmentId ? { departmentId: query.departmentId } : {}),
+        status: {
+          in: [
+            EmergencyEncounterStatus.TRIAGED,
+            EmergencyEncounterStatus.WAITING,
+            EmergencyEncounterStatus.CALLED,
+          ],
+        },
+      },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            patientNumber: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            gender: true,
+          },
+        },
+        department: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        assignedDoctor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        assignedNurse: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        triages: {
+          orderBy: {
+            assessedAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+    });
+
+    const queue = encounters.map((encounter) => {
+      const latestTriage = encounter.triages[0];
+
+      return {
+        ...encounter,
+        latestTriage,
+        priority: latestTriage
+          ? this.triagePriority[latestTriage.category]
+          : 99,
+        waitingMinutes: Math.max(
+          0,
+          Math.floor((Date.now() - encounter.arrivedAt.getTime()) / 60000),
+        ),
+      };
+    });
+
+    queue.sort((a, b) => {
+      if (a.priority !== b.priority) {
+        return a.priority - b.priority;
+      }
+
+      return a.arrivedAt.getTime() - b.arrivedAt.getTime();
+    });
+
+    return {
+      hospitalId,
+      totalPatients: queue.length,
+      patients: queue,
+    };
+  }
+
+  async assignEmergencyStaff(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+    dto: AssignEmergencyStaffDto,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    if (!dto.doctorId && !dto.nurseId) {
+      throw new BadRequestException(
+        'Provide at least a doctor ID or nurse ID.',
+      );
+    }
+
+    const encounter = await this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+    });
+
+    if (!encounter) {
+      throw new NotFoundException('Emergency encounter not found.');
+    }
+
+    const closedStatuses: EmergencyEncounterStatus[] = [
+      EmergencyEncounterStatus.ADMITTED,
+      EmergencyEncounterStatus.TRANSFERRED,
+      EmergencyEncounterStatus.DISCHARGED,
+      EmergencyEncounterStatus.LEFT_WITHOUT_BEING_SEEN,
+      EmergencyEncounterStatus.DECEASED,
+      EmergencyEncounterStatus.CANCELLED,
+    ];
+
+    if (closedStatuses.includes(encounter.status)) {
+      throw new BadRequestException(
+        'Cannot assign staff to a closed emergency encounter.',
+      );
+    }
+
+    if (dto.doctorId) {
+      const doctorAssignment = await this.prisma.userRole.findFirst({
+        where: {
+          userId: dto.doctorId,
+          hospitalId,
+          role: {
+            name: 'DOCTOR',
+          },
+        },
+      });
+
+      if (!doctorAssignment) {
+        throw new BadRequestException(
+          'The selected doctor is not assigned to this hospital with the DOCTOR role.',
+        );
+      }
+    }
+
+    if (dto.nurseId) {
+      const nurseAssignment = await this.prisma.userRole.findFirst({
+        where: {
+          userId: dto.nurseId,
+          hospitalId,
+          role: {
+            name: 'NURSE',
+          },
+        },
+      });
+
+      if (!nurseAssignment) {
+        throw new BadRequestException(
+          'The selected nurse is not assigned to this hospital with the NURSE role.',
+        );
+      }
+    }
+
+    return this.prisma.emergencyEncounter.update({
+      where: {
+        id: encounterId,
+      },
+      data: {
+        ...(dto.doctorId ? { assignedDoctorId: dto.doctorId } : {}),
+        ...(dto.nurseId ? { assignedNurseId: dto.nurseId } : {}),
+      },
+      include: {
+        assignedDoctor: true,
+        assignedNurse: true,
+      },
+    });
+  }
+
+  async callEmergencyPatient(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    const result = await this.prisma.emergencyEncounter.updateMany({
+      where: {
+        id: encounterId,
+        hospitalId,
+        status: {
+          in: [
+            EmergencyEncounterStatus.TRIAGED,
+            EmergencyEncounterStatus.WAITING,
+          ],
+        },
+      },
+      data: {
+        status: EmergencyEncounterStatus.CALLED,
+        calledAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      throw new ConflictException(
+        'Patient cannot be called. Check the encounter status.',
+      );
+    }
+
+    return this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+      include: {
+        patient: true,
+        assignedDoctor: true,
+        assignedNurse: true,
+      },
+    });
+  }
+
+  async startEmergencyTreatment(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    const result = await this.prisma.emergencyEncounter.updateMany({
+      where: {
+        id: encounterId,
+        hospitalId,
+        status: EmergencyEncounterStatus.CALLED,
+      },
+      data: {
+        status: EmergencyEncounterStatus.IN_TREATMENT,
+        treatmentStartedAt: new Date(),
+      },
+    });
+
+    if (result.count === 0) {
+      throw new ConflictException(
+        'Patient must be called before treatment can start.',
+      );
+    }
+
+    return this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+      include: {
+        patient: true,
+        assignedDoctor: true,
+        assignedNurse: true,
+        triages: {
+          orderBy: {
+            assessedAt: 'desc',
+          },
+        },
+      },
+    });
   }
 }
