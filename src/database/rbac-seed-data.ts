@@ -138,6 +138,19 @@ export const permissions = [
     code: 'pharmacy.dispensing-history.read',
     description: 'View prescription dispensing history',
   },
+
+  {
+    code: 'radiology.requests.create',
+    description: 'Create radiology requests',
+  },
+  {
+    code: 'radiology.requests.read',
+    description: 'View radiology requests',
+  },
+  {
+    code: 'radiology.requests.manage',
+    description: 'Manage radiology request statuses',
+  },
 ];
 
 export const roles = [
