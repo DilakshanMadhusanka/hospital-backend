@@ -258,11 +258,14 @@ model Hospital {
   labTests         LabTest[]
   labRequests      LabRequest[]
 
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  medicines      Medicine[]
-  suppliers      Supplier[]
-  purchaseOrders PurchaseOrder[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  medicines         Medicine[]
+  suppliers         Supplier[]
+  purchaseOrders    PurchaseOrder[]
+  medicineBatches   MedicineBatch[]
+  stockMovements    StockMovement[]
+  pharmacyDispenses PharmacyDispense[]
 
   @@index([district])
   @@index([type, status])
@@ -842,6 +845,9 @@ model PrescriptionItem {
   quantity     Int
   instructions String?
 
+  medicineId String?
+  medicine   Medicine? @relation(fields: [medicineId], references: [id])
+
   prescription          Prescription           @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
   pharmacyDispenseItems PharmacyDispenseItem[]
 }
@@ -1126,13 +1132,14 @@ model Medicine {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  hospital       Hospital               @relation(fields: [hospitalId], references: [id])
-  batches        MedicineBatch[]
-  purchaseItems  PurchaseOrderItem[]
-  dispenseItems  PharmacyDispenseItem[]
-  stockMovements StockMovement[]
-  department     Department?            @relation(fields: [departmentId], references: [id])
-  departmentId   String?                @db.Uuid
+  hospital          Hospital               @relation(fields: [hospitalId], references: [id])
+  batches           MedicineBatch[]
+  purchaseItems     PurchaseOrderItem[]
+  dispenseItems     PharmacyDispenseItem[]
+  stockMovements    StockMovement[]
+  department        Department?            @relation(fields: [departmentId], references: [id])
+  departmentId      String?                @db.Uuid
+  prescriptionItems PrescriptionItem[]
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -1228,6 +1235,7 @@ model MedicineBatch {
   dispenseItems  PharmacyDispenseItem[]
   department     Department?            @relation(fields: [departmentId], references: [id])
   departmentId   String?                @db.Uuid
+  hospital       Hospital               @relation(fields: [hospitalId], references: [id])
 
   @@unique([hospitalId, medicineId, batchNumber])
   @@index([hospitalId, expiryDate])
@@ -1257,6 +1265,7 @@ model StockMovement {
   departmentId String?        @db.Uuid
   user         User?          @relation(fields: [userId], references: [id])
   userId       String?        @db.Uuid
+  hospital     Hospital       @relation(fields: [hospitalId], references: [id])
 
   @@index([hospitalId, medicineId, createdAt])
   @@index([batchId, createdAt])
@@ -1282,6 +1291,7 @@ model PharmacyDispense {
   departmentId String?     @db.Uuid
   user         User?       @relation(fields: [userId], references: [id])
   userId       String?     @db.Uuid
+  hospital     Hospital    @relation(fields: [hospitalId], references: [id])
 
   @@index([hospitalId, dispensedAt])
   @@index([prescriptionId])
