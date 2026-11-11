@@ -250,6 +250,19 @@ export const permissions = [
     code: 'ipd.discharge.complete',
     description: 'Complete final inpatient discharge and release the bed',
   },
+
+  {
+    code: 'emergency.encounters.create',
+    description: 'Register emergency encounters',
+  },
+  {
+    code: 'emergency.encounters.read',
+    description: 'View emergency encounters',
+  },
+  {
+    code: 'emergency.triage.create',
+    description: 'Perform emergency patient triage',
+  },
 ];
 
 export const roles = [

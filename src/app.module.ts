@@ -17,6 +17,7 @@ import { IpdModule } from './modules/ipd/ipd.module.js';
 import { LaboratoryModule } from './modules/laboratory/laboratory.module.js';
 import { PharmacyModule } from './modules/pharmacy/pharmacy.module.js';
 import { RadiologyModule } from './modules/radiology/radiology.module.js';
+import { EmergencyModule } from './modules/emergency/emergency.module.js';
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { RadiologyModule } from './modules/radiology/radiology.module.js';
     IpdModule,
     LaboratoryModule,
     PharmacyModule,
-    RadiologyModule
+    RadiologyModule,
+    EmergencyModule
   ],
 })
 export class AppModule {}
