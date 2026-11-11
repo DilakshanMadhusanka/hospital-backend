@@ -14,6 +14,7 @@ import { RbacModule } from './modules/rbac/rbac.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
 import { OpdModule } from './modules/opd/opd.module.js';
 import { IpdModule } from './modules/ipd/ipd.module.js';
+import { LaboratoryModule } from './modules/laboratory/laboratory.module.js';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { IpdModule } from './modules/ipd/ipd.module.js';
     PatientsModule,
     OpdModule,
     IpdModule,
+    LaboratoryModule,
   ],
 })
 export class AppModule {}
