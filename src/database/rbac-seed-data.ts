@@ -164,6 +164,27 @@ export const permissions = [
     code: 'radiology.appointments.manage',
     description: 'Manage radiology appointments',
   },
+
+  {
+    code: 'radiology.reports.create',
+    description: 'Create radiology reports',
+  },
+  {
+    code: 'radiology.reports.read',
+    description: 'View radiology reports',
+  },
+  {
+    code: 'radiology.reports.verify',
+    description: 'Verify radiology reports',
+  },
+  {
+    code: 'radiology.reports.amend',
+    description: 'Amend verified radiology reports',
+  },
+  {
+    code: 'radiology.images.manage',
+    description: 'Manage radiology image records',
+  },
 ];
 
 export const roles = [

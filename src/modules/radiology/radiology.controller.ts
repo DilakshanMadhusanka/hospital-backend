@@ -28,6 +28,10 @@ import { QueryRadiologyAppointmentsDto } from './dto/query-radiology-appointment
 
 import { UpdateRadiologyAppointmentStatusDto } from './dto/update-radiology-appointment-status.dto.js';
 
+import { CreateRadiologyReportDto } from './dto/create-radiology-report.dto.js';
+import { AmendRadiologyReportDto } from './dto/amend-radiology-report.dto.js';
+import { CreateRadiologyImageDto } from './dto/create-radiology-image.dto.js';
+
 @Controller('radiology')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RadiologyController {
@@ -127,5 +131,61 @@ export class RadiologyController {
       appointmentId,
       dto.status,
     );
+  }
+
+  @Post('reports')
+  @Permissions('radiology.reports.create')
+  createReport(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateRadiologyReportDto,
+  ) {
+    return this.radiologyService.createReport(hospitalId, user.id, dto);
+  }
+
+  @Get('reports/:reportId')
+  @Permissions('radiology.reports.read')
+  getReport(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Param('reportId') reportId: string,
+  ) {
+    return this.radiologyService.getReport(hospitalId, user.id, reportId);
+  }
+
+  @Patch('reports/:reportId/verify')
+  @Permissions('radiology.reports.verify')
+  verifyReport(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Param('reportId') reportId: string,
+  ) {
+    return this.radiologyService.verifyReport(hospitalId, user.id, reportId);
+  }
+
+  @Post('reports/:reportId/amend')
+  @Permissions('radiology.reports.amend')
+  amendReport(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Param('reportId') reportId: string,
+    @Body() dto: AmendRadiologyReportDto,
+  ) {
+    return this.radiologyService.amendReport(
+      hospitalId,
+      user.id,
+      reportId,
+      dto,
+    );
+  }
+
+  @Post('images')
+  @Permissions('radiology.images.manage')
+  registerImage(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateRadiologyImageDto,
+  ) {
+    return this.radiologyService.registerImage(hospitalId, user.id, dto);
   }
 }
