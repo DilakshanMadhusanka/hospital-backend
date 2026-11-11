@@ -15,6 +15,59 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum ImagingModality {
+  XRAY
+  ULTRASOUND
+  CT
+  MRI
+  MAMMOGRAPHY
+  FLUOROSCOPY
+  DEXA
+  OTHER
+}
+
+enum RadiologyProcedureStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ImagingEquipmentStatus {
+  OPERATIONAL
+  MAINTENANCE
+  OUT_OF_SERVICE
+}
+
+enum RadiologyRequestStatus {
+  REQUESTED
+  ACCEPTED
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RadiologyPriority {
+  ROUTINE
+  URGENT
+  STAT
+}
+
+enum RadiologyAppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum RadiologyReportStatus {
+  DRAFT
+  VERIFIED
+  AMENDED
+}
+
 enum MedicineStatus {
   ACTIVE
   INACTIVE
@@ -242,21 +295,23 @@ model Hospital {
   phone String?
   email String?
 
-  departments      Department[]
-  wards            Ward[]
-  beds             Bed[]
-  services         HospitalService[]
-  staffAssignments HospitalStaffAssignment[]
-  registrations    HospitalPatient[]
-  userRoles        UserRole[]
-  auditLogs        AuditLog[]
-  settings         SystemSetting[]
-  opdVisits        OPDVisit[]
-  opdTokenCounters OPDTokenCounter[]
-  doctorSchedules  DoctorSchedule[]
-  ipdAdmissions    IPDAdmission[]
-  labTests         LabTest[]
-  labRequests      LabRequest[]
+  departments         Department[]
+  wards               Ward[]
+  beds                Bed[]
+  services            HospitalService[]
+  staffAssignments    HospitalStaffAssignment[]
+  registrations       HospitalPatient[]
+  userRoles           UserRole[]
+  auditLogs           AuditLog[]
+  settings            SystemSetting[]
+  opdVisits           OPDVisit[]
+  opdTokenCounters    OPDTokenCounter[]
+  doctorSchedules     DoctorSchedule[]
+  ipdAdmissions       IPDAdmission[]
+  labTests            LabTest[]
+  labRequests         LabRequest[]
+  radiologyProcedures RadiologyProcedure[]
+  imagingEquipment    ImagingEquipment[]
 
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -283,18 +338,20 @@ model Department {
 
   hospital Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
-  wards             Ward[]
-  services          HospitalService[]
-  staffAssignments  HospitalStaffAssignment[]
-  userRoles         UserRole[]
-  opdTokenCounters  OPDTokenCounter[]
-  ipdAdmissions     IPDAdmission[]
-  medicines         Medicine[]
-  suppliers         Supplier[]
-  purchaseOrders    PurchaseOrder[]
-  medicineBatches   MedicineBatch[]
-  stockMovements    StockMovement[]
-  pharmacyDispenses PharmacyDispense[]
+  wards               Ward[]
+  services            HospitalService[]
+  staffAssignments    HospitalStaffAssignment[]
+  userRoles           UserRole[]
+  opdTokenCounters    OPDTokenCounter[]
+  ipdAdmissions       IPDAdmission[]
+  medicines           Medicine[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  medicineBatches     MedicineBatch[]
+  stockMovements      StockMovement[]
+  pharmacyDispenses   PharmacyDispense[]
+  radiologyProcedures RadiologyProcedure[]
+  imagingEquipment    ImagingEquipment[]
 
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -1313,6 +1370,68 @@ model PharmacyDispenseItem {
 
   @@index([prescriptionItemId])
   @@index([batchId])
+}
+
+model RadiologyProcedure {
+  id           String  @id @default(uuid()) @db.Uuid
+  hospitalId   String  @db.Uuid
+  departmentId String? @db.Uuid
+
+  code        String
+  name        String
+  modality    ImagingModality
+  description String?
+
+  preparationInstructions  String?
+  estimatedDurationMinutes Int     @default(15)
+
+  status RadiologyProcedureStatus @default(ACTIVE)
+
+  hospital   Hospital    @relation(fields: [hospitalId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  // requests RadiologyRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hospitalId, code])
+  @@index([hospitalId, modality, status])
+  @@index([departmentId])
+  @@map("radiology_procedures")
+}
+
+model ImagingEquipment {
+  id           String  @id @default(uuid()) @db.Uuid
+  hospitalId   String  @db.Uuid
+  departmentId String? @db.Uuid
+
+  assetCode    String
+  name         String
+  modality     ImagingModality
+  manufacturer String?
+  modelNumber  String?
+  serialNumber String?
+
+  location String?
+
+  status ImagingEquipmentStatus @default(OPERATIONAL)
+
+  lastMaintenanceAt DateTime?
+  nextMaintenanceAt DateTime?
+
+  hospital   Hospital    @relation(fields: [hospitalId], references: [id])
+  department Department? @relation(fields: [departmentId], references: [id])
+
+  // appointments RadiologyAppointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hospitalId, assetCode])
+  @@index([hospitalId, modality, status])
+  @@index([departmentId])
+  @@map("imaging_equipment")
 }
 
 // ======================================================
