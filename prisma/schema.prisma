@@ -1852,9 +1852,9 @@ model EmergencyEncounter {
   assignedDoctorId String? @db.Uuid
   assignedNurseId  String? @db.Uuid
 
-  assignedDoctor User? @relation("EmergencyAssignedDoctor",fields: [assignedDoctorId],references: [id],onDelete: Restrict)
+  assignedDoctor User? @relation("EmergencyAssignedDoctor", fields: [assignedDoctorId], references: [id], onDelete: Restrict)
 
-  assignedNurse User? @relation("EmergencyAssignedNurse",fields: [assignedNurseId],references: [id],onDelete: Restrict)
+  assignedNurse User? @relation("EmergencyAssignedNurse", fields: [assignedNurseId], references: [id], onDelete: Restrict)
 
   calledAt           DateTime?
   treatmentStartedAt DateTime?
