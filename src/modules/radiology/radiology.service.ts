@@ -5,10 +5,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
+
 import {
-  RadiologyPriority,
+  Prisma,
+  RadiologyAppointmentStatus,
   RadiologyRequestStatus,
+  ImagingEquipmentStatus,
+  RadiologyPriority,
 } from '@prisma/client';
+
+import { CreateRadiologyAppointmentDto } from './dto/create-radiology-appointment.dto.js';
+import { QueryRadiologyAppointmentsDto } from './dto/query-radiology-appointments.dto.js';
 
 import { randomUUID } from 'crypto';
 
@@ -25,10 +33,7 @@ export class RadiologyService {
    * Verify that the logged-in user has an assignment
    * to the requested hospital.
    */
-  private async verifyHospitalAccess(
-    userId: string,
-    hospitalId: string,
-  ) {
+  private async verifyHospitalAccess(userId: string, hospitalId: string) {
     const assignment = await this.prisma.userRole.findFirst({
       where: {
         userId,
@@ -37,9 +42,7 @@ export class RadiologyService {
     });
 
     if (!assignment) {
-      throw new ForbiddenException(
-        'You do not have access to this hospital.',
-      );
+      throw new ForbiddenException('You do not have access to this hospital.');
     }
   }
 
@@ -116,9 +119,7 @@ export class RadiologyService {
     });
 
     if (!procedure) {
-      throw new BadRequestException(
-        'Invalid or inactive radiology procedure.',
-      );
+      throw new BadRequestException('Invalid or inactive radiology procedure.');
     }
 
     // Verify the source clinical encounter.
@@ -220,21 +221,14 @@ export class RadiologyService {
           },
         },
       },
-      orderBy: [
-        { priority: 'desc' },
-        { requestedAt: 'asc' },
-      ],
+      orderBy: [{ priority: 'desc' }, { requestedAt: 'asc' }],
     });
   }
 
   /**
    * Get one request.
    */
-  async getRequestById(
-    hospitalId: string,
-    userId: string,
-    requestId: string,
-  ) {
+  async getRequestById(hospitalId: string, userId: string, requestId: string) {
     await this.verifyHospitalAccess(userId, hospitalId);
 
     const request = await this.prisma.radiologyRequest.findFirst({
@@ -311,6 +305,424 @@ export class RadiologyService {
         procedure: true,
         department: true,
       },
+    });
+  }
+
+  async createAppointment(
+    hospitalId: string,
+    userId: string,
+    dto: CreateRadiologyAppointmentDto,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const start = new Date(dto.scheduledStart);
+    const end = new Date(dto.scheduledEnd);
+
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
+      throw new BadRequestException(
+        'The appointment end time must be later than the start time.',
+      );
+    }
+
+    // Keep appointments within a reasonable maximum duration.
+    const durationMinutes = (end.getTime() - start.getTime()) / 60000;
+
+    if (durationMinutes > 24 * 60) {
+      throw new BadRequestException('An appointment cannot exceed 24 hours.');
+    }
+
+    // Retry serialization conflicts caused by simultaneous bookings.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await this.prisma.$transaction(
+          async (tx) => {
+            const request = await tx.radiologyRequest.findFirst({
+              where: {
+                id: dto.requestId,
+                hospitalId,
+              },
+              include: {
+                procedure: true,
+              },
+            });
+
+            if (!request) {
+              throw new NotFoundException('Radiology request not found.');
+            }
+
+            if (
+              request.status !== RadiologyRequestStatus.ACCEPTED &&
+              request.status !== RadiologyRequestStatus.SCHEDULED
+            ) {
+              throw new BadRequestException(
+                'Only accepted or previously scheduled requests can be scheduled.',
+              );
+            }
+
+            const equipment = await tx.imagingEquipment.findFirst({
+              where: {
+                id: dto.equipmentId,
+                hospitalId,
+              },
+            });
+
+            if (!equipment) {
+              throw new NotFoundException(
+                'Imaging equipment not found in this hospital.',
+              );
+            }
+
+            if (equipment.status !== ImagingEquipmentStatus.OPERATIONAL) {
+              throw new BadRequestException(
+                'The selected equipment is not operational.',
+              );
+            }
+
+            if (equipment.modality !== request.procedure.modality) {
+              throw new BadRequestException(
+                'The equipment modality does not match the requested procedure.',
+              );
+            }
+
+            // Ensure there is no other active appointment for this request.
+            const existingRequestAppointment =
+              await tx.radiologyAppointment.findFirst({
+                where: {
+                  requestId: request.id,
+                  status: {
+                    in: [
+                      RadiologyAppointmentStatus.SCHEDULED,
+                      RadiologyAppointmentStatus.CONFIRMED,
+                      RadiologyAppointmentStatus.ARRIVED,
+                      RadiologyAppointmentStatus.IN_PROGRESS,
+                    ],
+                  },
+                },
+              });
+
+            if (existingRequestAppointment) {
+              throw new ConflictException(
+                'This radiology request already has an active appointment.',
+              );
+            }
+
+            // Detect overlapping appointments for the selected equipment.
+            const conflictingAppointment =
+              await tx.radiologyAppointment.findFirst({
+                where: {
+                  hospitalId,
+                  equipmentId: equipment.id,
+                  status: {
+                    in: [
+                      RadiologyAppointmentStatus.SCHEDULED,
+                      RadiologyAppointmentStatus.CONFIRMED,
+                      RadiologyAppointmentStatus.ARRIVED,
+                      RadiologyAppointmentStatus.IN_PROGRESS,
+                    ],
+                  },
+                  scheduledStart: {
+                    lt: end,
+                  },
+                  scheduledEnd: {
+                    gt: start,
+                  },
+                },
+              });
+
+            if (conflictingAppointment) {
+              throw new ConflictException(
+                'The selected equipment already has an appointment during this time.',
+              );
+            }
+
+            const appointment = await tx.radiologyAppointment.create({
+              data: {
+                hospitalId,
+                requestId: request.id,
+                equipmentId: equipment.id,
+                createdById: userId,
+                scheduledStart: start,
+                scheduledEnd: end,
+                notes: dto.notes,
+                status: RadiologyAppointmentStatus.SCHEDULED,
+              },
+              include: {
+                request: {
+                  include: {
+                    patient: true,
+                    procedure: true,
+                  },
+                },
+                equipment: true,
+                createdBy: {
+                  select: {
+                    id: true,
+                  },
+                },
+              },
+            });
+
+            await tx.radiologyRequest.update({
+              where: {
+                id: request.id,
+              },
+              data: {
+                status: RadiologyRequestStatus.SCHEDULED,
+              },
+            });
+
+            return appointment;
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          },
+        );
+      } catch (error) {
+        const prismaError = error as { code?: string };
+
+        if (prismaError.code === 'P2034' && attempt < 3) {
+          continue;
+        }
+
+        if (prismaError.code === 'P2034') {
+          throw new ServiceUnavailableException(
+            'The schedule is being updated by another user. Please try again.',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new ServiceUnavailableException(
+      'Unable to create the appointment. Please try again.',
+    );
+  }
+
+  async getAppointments(
+    hospitalId: string,
+    userId: string,
+    filters: QueryRadiologyAppointmentsDto,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    if (
+      filters.from &&
+      filters.to &&
+      new Date(filters.to) < new Date(filters.from)
+    ) {
+      throw new BadRequestException(
+        'The end date cannot be earlier than the start date.',
+      );
+    }
+
+    return this.prisma.radiologyAppointment.findMany({
+      where: {
+        hospitalId,
+
+        ...(filters.status && {
+          status: filters.status,
+        }),
+
+        ...(filters.equipmentId && {
+          equipmentId: filters.equipmentId,
+        }),
+
+        ...(filters.requestId && {
+          requestId: filters.requestId,
+        }),
+
+        ...(filters.from || filters.to
+          ? {
+              scheduledStart: {
+                ...(filters.from && {
+                  gte: new Date(filters.from),
+                }),
+                ...(filters.to && {
+                  lte: new Date(filters.to),
+                }),
+              },
+            }
+          : {}),
+      },
+
+      include: {
+        request: {
+          include: {
+            patient: true,
+            procedure: true,
+          },
+        },
+        equipment: true,
+        createdBy: {
+          select: {
+            id: true,
+          },
+        },
+      },
+
+      orderBy: {
+        scheduledStart: 'asc',
+      },
+    });
+  }
+
+  async getAppointmentById(
+    hospitalId: string,
+    userId: string,
+    appointmentId: string,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const appointment = await this.prisma.radiologyAppointment.findFirst({
+      where: {
+        id: appointmentId,
+        hospitalId,
+      },
+      include: {
+        request: {
+          include: {
+            patient: true,
+            procedure: true,
+          },
+        },
+        equipment: true,
+        createdBy: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!appointment) {
+      throw new NotFoundException('Radiology appointment not found.');
+    }
+
+    return appointment;
+  }
+
+  async updateAppointmentStatus(
+    hospitalId: string,
+    userId: string,
+    appointmentId: string,
+    newStatus: RadiologyAppointmentStatus,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const allowedTransitions: Record<
+      RadiologyAppointmentStatus,
+      RadiologyAppointmentStatus[]
+    > = {
+      SCHEDULED: [
+        RadiologyAppointmentStatus.CONFIRMED,
+        RadiologyAppointmentStatus.ARRIVED,
+        RadiologyAppointmentStatus.CANCELLED,
+      ],
+
+      CONFIRMED: [
+        RadiologyAppointmentStatus.ARRIVED,
+        RadiologyAppointmentStatus.CANCELLED,
+      ],
+
+      ARRIVED: [
+        RadiologyAppointmentStatus.IN_PROGRESS,
+        RadiologyAppointmentStatus.CANCELLED,
+      ],
+
+      IN_PROGRESS: [RadiologyAppointmentStatus.COMPLETED],
+
+      COMPLETED: [],
+
+      CANCELLED: [],
+
+      NO_SHOW: [],
+    };
+
+    return this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.radiologyAppointment.findFirst({
+        where: {
+          id: appointmentId,
+          hospitalId,
+        },
+      });
+
+      if (!appointment) {
+        throw new NotFoundException('Radiology appointment not found.');
+      }
+
+      if (!allowedTransitions[appointment.status].includes(newStatus)) {
+        throw new BadRequestException(
+          `Cannot change appointment from ${appointment.status} to ${newStatus}.`,
+        );
+      }
+
+      const now = new Date();
+
+      const updateData: Prisma.RadiologyAppointmentUpdateInput = {
+        status: newStatus,
+      };
+
+      if (newStatus === RadiologyAppointmentStatus.ARRIVED) {
+        updateData.arrivedAt = now;
+      }
+
+      if (newStatus === RadiologyAppointmentStatus.IN_PROGRESS) {
+        updateData.startedAt = now;
+      }
+
+      if (newStatus === RadiologyAppointmentStatus.COMPLETED) {
+        updateData.completedAt = now;
+      }
+
+      // Conditional update protects against simultaneous status changes.
+      const updated = await tx.radiologyAppointment.updateMany({
+        where: {
+          id: appointmentId,
+          hospitalId,
+          status: appointment.status,
+        },
+        data: updateData,
+      });
+
+      if (updated.count !== 1) {
+        throw new ConflictException(
+          'The appointment was modified by another user. Refresh and try again.',
+        );
+      }
+
+      if (newStatus === RadiologyAppointmentStatus.COMPLETED) {
+        await tx.radiologyRequest.updateMany({
+          where: {
+            id: appointment.requestId,
+            hospitalId,
+            status: RadiologyRequestStatus.SCHEDULED,
+          },
+          data: {
+            status: RadiologyRequestStatus.COMPLETED,
+          },
+        });
+      }
+
+      return tx.radiologyAppointment.findFirst({
+        where: {
+          id: appointmentId,
+          hospitalId,
+        },
+        include: {
+          request: {
+            include: {
+              patient: true,
+              procedure: true,
+            },
+          },
+          equipment: true,
+        },
+      });
     });
   }
 }
