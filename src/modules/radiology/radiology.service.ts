@@ -3,9 +3,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ConflictException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 
-import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
+import { CreateRadiologyReportDto } from './dto/create-radiology-report.dto.js';
+import { AmendRadiologyReportDto } from './dto/amend-radiology-report.dto.js';
+import { CreateRadiologyImageDto } from './dto/create-radiology-image.dto.js';
 
 import {
   Prisma,
@@ -13,6 +17,7 @@ import {
   RadiologyRequestStatus,
   ImagingEquipmentStatus,
   RadiologyPriority,
+  RadiologyReportStatus,
 } from '@prisma/client';
 
 import { CreateRadiologyAppointmentDto } from './dto/create-radiology-appointment.dto.js';
@@ -724,5 +729,351 @@ export class RadiologyService {
         },
       });
     });
+  }
+
+  async createReport(
+    hospitalId: string,
+    userId: string,
+    dto: CreateRadiologyReportDto,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const appointment = await tx.radiologyAppointment.findFirst({
+        where: {
+          id: dto.appointmentId,
+          hospitalId,
+        },
+        include: {
+          request: true,
+        },
+      });
+
+      if (!appointment) {
+        throw new NotFoundException('Radiology appointment not found.');
+      }
+
+      if (appointment.status !== RadiologyAppointmentStatus.COMPLETED) {
+        throw new BadRequestException(
+          'A report can only be created for a completed examination.',
+        );
+      }
+
+      const existingReport = await tx.radiologyReport.findFirst({
+        where: {
+          appointmentId: appointment.id,
+          status: {
+            in: [RadiologyReportStatus.DRAFT, RadiologyReportStatus.VERIFIED],
+          },
+        },
+      });
+
+      if (existingReport) {
+        throw new ConflictException(
+          'An active report already exists for this appointment. Use the amendment workflow if necessary.',
+        );
+      }
+
+      return tx.radiologyReport.create({
+        data: {
+          hospitalId,
+          appointmentId: appointment.id,
+          radiologistId: userId,
+          version: 1,
+          technique: dto.technique,
+          clinicalHistory: dto.clinicalHistory,
+          findings: dto.findings,
+          impression: dto.impression,
+          recommendations: dto.recommendations,
+          status: RadiologyReportStatus.DRAFT,
+        },
+        include: {
+          appointment: {
+            select: {
+              id: true,
+              scheduledStart: true,
+              status: true,
+            },
+          },
+          radiologist: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+    });
+  }
+
+  async getReport(hospitalId: string, userId: string, reportId: string) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const report = await this.prisma.radiologyReport.findFirst({
+      where: {
+        id: reportId,
+        hospitalId,
+      },
+      include: {
+        appointment: {
+          include: {
+            request: {
+              include: {
+                patient: {
+                  select: {
+                    id: true,
+                    patientNumber: true,
+                    firstName: true,
+                    lastName: true,
+                    dateOfBirth: true,
+                  },
+                },
+                procedure: true,
+              },
+            },
+            equipment: true,
+          },
+        },
+        radiologist: {
+          select: {
+            id: true,
+          },
+        },
+        verifiedBy: {
+          select: {
+            id: true,
+          },
+        },
+        images: {
+          select: {
+            id: true,
+            fileName: true,
+            mimeType: true,
+            fileSize: true,
+            description: true,
+            createdAt: true,
+          },
+        },
+        nextVersions: {
+          select: {
+            id: true,
+            version: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException('Radiology report not found.');
+    }
+
+    return {
+      ...report,
+      images: report.images.map((image) => ({
+        ...image,
+        fileSize: image.fileSize.toString(),
+      })),
+    };
+  }
+
+  async verifyReport(hospitalId: string, userId: string, reportId: string) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const report = await tx.radiologyReport.findFirst({
+        where: {
+          id: reportId,
+          hospitalId,
+        },
+      });
+
+      if (!report) {
+        throw new NotFoundException('Radiology report not found.');
+      }
+
+      if (report.status !== RadiologyReportStatus.DRAFT) {
+        throw new BadRequestException('Only draft reports can be verified.');
+      }
+
+      if (report.radiologistId === userId) {
+        throw new ForbiddenException(
+          'A radiologist cannot verify their own report. Another authorized radiologist must verify it.',
+        );
+      }
+
+      const updated = await tx.radiologyReport.updateMany({
+        where: {
+          id: reportId,
+          hospitalId,
+          status: RadiologyReportStatus.DRAFT,
+        },
+        data: {
+          status: RadiologyReportStatus.VERIFIED,
+          verifiedById: userId,
+          verifiedAt: new Date(),
+        },
+      });
+
+      if (updated.count !== 1) {
+        throw new ConflictException(
+          'The report was modified by another user. Refresh and try again.',
+        );
+      }
+
+      return tx.radiologyReport.findUnique({
+        where: {
+          id: reportId,
+        },
+        select: {
+          id: true,
+          appointmentId: true,
+          version: true,
+          status: true,
+          verifiedById: true,
+          verifiedAt: true,
+          updatedAt: true,
+        },
+      });
+    });
+  }
+
+  async amendReport(
+    hospitalId: string,
+    userId: string,
+    reportId: string,
+    dto: AmendRadiologyReportDto,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const original = await tx.radiologyReport.findFirst({
+          where: {
+            id: reportId,
+            hospitalId,
+          },
+        });
+
+        if (!original) {
+          throw new NotFoundException('Radiology report not found.');
+        }
+
+        if (original.status !== RadiologyReportStatus.VERIFIED) {
+          throw new BadRequestException(
+            'Only verified reports can be amended.',
+          );
+        }
+
+        const latestReport = await tx.radiologyReport.findFirst({
+          where: {
+            appointmentId: original.appointmentId,
+          },
+          orderBy: {
+            version: 'desc',
+          },
+        });
+
+        const nextVersion = (latestReport?.version ?? 0) + 1;
+
+        const changed = await tx.radiologyReport.updateMany({
+          where: {
+            id: original.id,
+            hospitalId,
+            status: RadiologyReportStatus.VERIFIED,
+          },
+          data: {
+            status: RadiologyReportStatus.AMENDED,
+            amendedAt: new Date(),
+          },
+        });
+
+        if (changed.count !== 1) {
+          throw new ConflictException('The report has already been modified.');
+        }
+
+        return tx.radiologyReport.create({
+          data: {
+            hospitalId,
+            appointmentId: original.appointmentId,
+            radiologistId: userId,
+            previousReportId: original.id,
+            version: nextVersion,
+            technique: dto.technique ?? original.technique,
+            clinicalHistory: dto.clinicalHistory ?? original.clinicalHistory,
+            findings: dto.findings,
+            impression: dto.impression,
+            recommendations: dto.recommendations ?? original.recommendations,
+            status: RadiologyReportStatus.DRAFT,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
+  async registerImage(
+    hospitalId: string,
+    userId: string,
+    dto: CreateRadiologyImageDto,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const report = await this.prisma.radiologyReport.findFirst({
+      where: {
+        id: dto.reportId,
+        hospitalId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException('Radiology report not found.');
+    }
+
+    if (report.status !== RadiologyReportStatus.DRAFT) {
+      throw new BadRequestException(
+        'Images can only be attached while the report is in draft status.',
+      );
+    }
+
+    // Temporary validation until storage upload is integrated.
+    // The storage service should issue trusted storage keys.
+    if (
+      dto.storageKey.startsWith('/') ||
+      dto.storageKey.includes('..') ||
+      dto.storageKey.includes('\\')
+    ) {
+      throw new BadRequestException('Invalid storage key.');
+    }
+
+    const image = await this.prisma.radiologyImage.create({
+      data: {
+        hospitalId,
+        reportId: report.id,
+        uploadedById: userId,
+        fileName: dto.fileName,
+        storageKey: dto.storageKey,
+        mimeType: dto.mimeType,
+        fileSize: BigInt(dto.fileSize),
+        checksum: dto.checksum,
+        description: dto.description,
+      },
+    });
+
+    return {
+      id: image.id,
+      reportId: image.reportId,
+      fileName: image.fileName,
+      mimeType: image.mimeType,
+      fileSize: image.fileSize.toString(),
+      description: image.description,
+      createdAt: image.createdAt,
+    };
   }
 }
