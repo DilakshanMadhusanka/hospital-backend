@@ -199,6 +199,31 @@ export const permissions = [
     code: 'ipd.occupancy.read',
     description: 'View inpatient bed occupancy statistics',
   },
+
+  {
+    code: 'ipd.transfers.create',
+    description: 'Create inpatient transfer requests',
+  },
+  {
+    code: 'ipd.transfers.read',
+    description: 'View inpatient transfer requests',
+  },
+  {
+    code: 'ipd.transfers.approve',
+    description: 'Approve inpatient transfer requests',
+  },
+  {
+    code: 'ipd.transfers.reject',
+    description: 'Reject inpatient transfer requests',
+  },
+  {
+    code: 'ipd.transfers.complete',
+    description: 'Complete approved inpatient transfers',
+  },
+  {
+    code: 'ipd.transfers.cancel',
+    description: 'Cancel inpatient transfer requests',
+  },
 ];
 
 export const roles = [
