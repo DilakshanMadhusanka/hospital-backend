@@ -21,6 +21,12 @@ import { BedStatus, IPDAdmissionStatus, Prisma } from '@prisma/client';
 
 import { TransferIPDBedDto } from './dto/transfer-ipd-bed.dto.js';
 
+import {
+  BedOccupancyItem,
+  BedOccupancyState,
+  BedOccupancySummary,
+} from './types/bed-occupancy.types.js';
+
 @Injectable()
 export class IpdService {
   constructor(private readonly prisma: PrismaService) {}
@@ -701,5 +707,286 @@ export class IpdService {
     }
 
     throw new ServiceUnavailableException('Unable to transfer the patient.');
+  }
+
+  private async verifyHospitalAccess(
+    userId: string,
+    hospitalId: string,
+  ): Promise<void> {
+    const userRole = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        hospitalId,
+      },
+    });
+
+    if (!userRole) {
+      throw new ForbiddenException('You do not have access to this hospital.');
+    }
+  }
+
+  private calculateBedOccupancy(
+    beds: any[],
+    activeAllocations: any[],
+  ): {
+    summary: BedOccupancySummary;
+    beds: BedOccupancyItem[];
+  } {
+    const allocationByBed = new Map<string, any>();
+
+    for (const allocation of activeAllocations) {
+      allocationByBed.set(allocation.bedId, allocation);
+    }
+
+    const result: BedOccupancyItem[] = beds.map((bed) => {
+      const allocation = allocationByBed.get(bed.id);
+
+      const hasActiveAllocation = Boolean(allocation);
+      const recordedStatus = bed.status as string;
+
+      let calculatedStatus: BedOccupancyState;
+      let hasInconsistency = false;
+
+      if (hasActiveAllocation) {
+        calculatedStatus = 'OCCUPIED';
+
+        if (recordedStatus !== 'OCCUPIED') {
+          hasInconsistency = true;
+        }
+      } else if (recordedStatus === 'OCCUPIED') {
+        calculatedStatus = 'INCONSISTENT';
+        hasInconsistency = true;
+      } else if (
+        recordedStatus === 'AVAILABLE' ||
+        recordedStatus === 'RESERVED' ||
+        recordedStatus === 'MAINTENANCE' ||
+        recordedStatus === 'OUT_OF_SERVICE'
+      ) {
+        calculatedStatus = recordedStatus;
+      } else {
+        calculatedStatus = 'INCONSISTENT';
+        hasInconsistency = true;
+      }
+
+      return {
+        bedId: bed.id,
+        bedNumber: bed.bedNumber,
+        wardId: bed.wardId,
+        wardName: bed.ward?.name ?? 'Unknown ward',
+        recordedStatus,
+        calculatedStatus,
+        activeAdmissionId: allocation?.admissionId ?? null,
+        hasInconsistency,
+      };
+    });
+
+    const count = (status: BedOccupancyState) =>
+      result.filter((bed) => bed.calculatedStatus === status).length;
+
+    const totalBeds = result.length;
+    const occupiedBeds = count('OCCUPIED');
+    const availableBeds = count('AVAILABLE');
+    const reservedBeds = count('RESERVED');
+    const maintenanceBeds = count('MAINTENANCE');
+    const outOfServiceBeds = count('OUT_OF_SERVICE');
+    const inconsistentBeds = count('INCONSISTENT');
+
+    const usableCapacity = totalBeds - maintenanceBeds - outOfServiceBeds;
+
+    const occupancyRate =
+      usableCapacity > 0
+        ? Number(((occupiedBeds / usableCapacity) * 100).toFixed(2))
+        : 0;
+
+    return {
+      beds: result,
+      summary: {
+        totalBeds,
+        occupiedBeds,
+        availableBeds,
+        reservedBeds,
+        maintenanceBeds,
+        outOfServiceBeds,
+        inconsistentBeds,
+        usableCapacity,
+        occupancyRate,
+      },
+    };
+  }
+
+  async getBedAvailability(
+    hospitalId: string,
+    userId: string,
+    wardId?: string,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    if (wardId) {
+      const ward = await this.prisma.ward.findFirst({
+        where: {
+          id: wardId,
+          hospitalId,
+        },
+      });
+
+      if (!ward) {
+        throw new NotFoundException('Ward not found in this hospital.');
+      }
+    }
+
+    const beds = await this.prisma.bed.findMany({
+      where: {
+        hospitalId,
+        ...(wardId ? { wardId } : {}),
+      },
+      include: {
+        ward: true,
+      },
+      orderBy: [{ wardId: 'asc' }, { bedNumber: 'asc' }],
+    });
+
+    const activeAllocations = await this.prisma.iPDBedAllocation.findMany({
+      where: {
+        releasedAt: null,
+        bed: {
+          hospitalId,
+          ...(wardId ? { wardId } : {}),
+        },
+      },
+      select: {
+        bedId: true,
+        admissionId: true,
+      },
+    });
+
+    const calculated = this.calculateBedOccupancy(beds, activeAllocations);
+
+    return {
+      hospitalId,
+      wardId: wardId ?? null,
+      availableBeds: calculated.beds.filter(
+        (bed) => bed.calculatedStatus === 'AVAILABLE',
+      ),
+      totalAvailable: calculated.summary.availableBeds,
+      inconsistentBeds: calculated.beds.filter((bed) => bed.hasInconsistency),
+    };
+  }
+
+  async getHospitalBedOccupancy(hospitalId: string, userId: string) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const beds = await this.prisma.bed.findMany({
+      where: { hospitalId },
+      include: {
+        ward: true,
+      },
+      orderBy: [{ wardId: 'asc' }, { bedNumber: 'asc' }],
+    });
+
+    const activeAllocations = await this.prisma.iPDBedAllocation.findMany({
+      where: {
+        releasedAt: null,
+        bed: {
+          hospitalId,
+        },
+      },
+      select: {
+        bedId: true,
+        admissionId: true,
+      },
+    });
+
+    const calculated = this.calculateBedOccupancy(beds, activeAllocations);
+
+    return {
+      hospitalId,
+      generatedAt: new Date(),
+      summary: calculated.summary,
+      wards: this.groupBedsByWard(calculated.beds),
+      inconsistentBeds: calculated.beds.filter((bed) => bed.hasInconsistency),
+    };
+  }
+
+  async getWardBedOccupancy(
+    hospitalId: string,
+    wardId: string,
+    userId: string,
+  ) {
+    await this.verifyHospitalAccess(userId, hospitalId);
+
+    const ward = await this.prisma.ward.findFirst({
+      where: {
+        id: wardId,
+        hospitalId,
+      },
+    });
+
+    if (!ward) {
+      throw new NotFoundException('Ward not found in this hospital.');
+    }
+
+    const beds = await this.prisma.bed.findMany({
+      where: {
+        hospitalId,
+        wardId,
+      },
+      include: {
+        ward: true,
+      },
+      orderBy: {
+        bedNumber: 'asc',
+      },
+    });
+
+    const activeAllocations = await this.prisma.iPDBedAllocation.findMany({
+      where: {
+        releasedAt: null,
+        bed: {
+          hospitalId,
+          wardId,
+        },
+      },
+      select: {
+        bedId: true,
+        admissionId: true,
+      },
+    });
+
+    const calculated = this.calculateBedOccupancy(beds, activeAllocations);
+
+    return {
+      hospitalId,
+      ward,
+      summary: calculated.summary,
+      beds: calculated.beds,
+      inconsistentBeds: calculated.beds.filter((bed) => bed.hasInconsistency),
+    };
+  }
+
+  private groupBedsByWard(beds: BedOccupancyItem[]) {
+    const groups = new Map<string, BedOccupancyItem[]>();
+
+    for (const bed of beds) {
+      const current = groups.get(bed.wardId) ?? [];
+      current.push(bed);
+      groups.set(bed.wardId, current);
+    }
+
+    return Array.from(groups.entries()).map(([wardId, wardBeds]) => {
+      const count = (status: BedOccupancyState) =>
+        wardBeds.filter((bed) => bed.calculatedStatus === status).length;
+
+      return {
+        wardId,
+        wardName: wardBeds[0]?.wardName ?? 'Unknown ward',
+        totalBeds: wardBeds.length,
+        occupiedBeds: count('OCCUPIED'),
+        availableBeds: count('AVAILABLE'),
+        reservedBeds: count('RESERVED'),
+        maintenanceBeds: count('MAINTENANCE'),
+        outOfServiceBeds: count('OUT_OF_SERVICE'),
+        inconsistentBeds: count('INCONSISTENT'),
+      };
+    });
   }
 }

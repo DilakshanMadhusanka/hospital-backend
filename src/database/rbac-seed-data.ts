@@ -190,6 +190,15 @@ export const permissions = [
     code: 'ipd.beds.transfer',
     description: 'Transfer admitted patients between beds',
   },
+
+  {
+    code: 'ipd.beds.read',
+    description: 'View inpatient bed availability',
+  },
+  {
+    code: 'ipd.occupancy.read',
+    description: 'View inpatient bed occupancy statistics',
+  },
 ];
 
 export const roles = [

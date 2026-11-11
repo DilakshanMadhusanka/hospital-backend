@@ -7,7 +7,7 @@ import {
   Post,
   Query,
   UseGuards,
-  Patch
+  Patch,
 } from '@nestjs/common';
 
 import { IpdService } from './ipd.service.js';
@@ -129,5 +129,34 @@ export class IpdController {
   @Permissions('ipd.clinical-records.read')
   getClinicalRecords(@Param('admissionId', ParseUUIDPipe) admissionId: string) {
     return this.ipdService.getClinicalRecords(admissionId);
+  }
+
+  @Get('beds/availability')
+  @Permissions('ipd.beds.read')
+  getBedAvailability(
+    @Query('hospitalId') hospitalId: string,
+    @Query('wardId') wardId: string | undefined,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.ipdService.getBedAvailability(hospitalId, user.id, wardId);
+  }
+
+  @Get('beds/occupancy')
+  @Permissions('ipd.occupancy.read')
+  getHospitalBedOccupancy(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.ipdService.getHospitalBedOccupancy(hospitalId, user.id);
+  }
+
+  @Get('wards/:wardId/occupancy')
+  @Permissions('ipd.occupancy.read')
+  getWardBedOccupancy(
+    @Param('wardId') wardId: string,
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.ipdService.getWardBedOccupancy(hospitalId, wardId, user.id);
   }
 }
