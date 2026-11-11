@@ -25,6 +25,8 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { CreateEmergencyEncounterDto } from './dto/create-emergency-encounter.dto.js';
 import { CreateEmergencyTriageDto } from './dto/create-emergency-triage.dto.js';
 
+import { CreateEmergencyPrescriptionDto } from './dto/create-emergency-prescription.dto.js';
+
 @Injectable()
 export class EmergencyService {
   constructor(private readonly prisma: PrismaService) {}
@@ -836,5 +838,106 @@ export class EmergencyService {
         radiologyCount: encounter.radiologyRequests.length,
       },
     };
+  }
+
+  async createEmergencyPrescription(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+    dto: CreateEmergencyPrescriptionDto,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    await this.verifyClinicalRole(hospitalId, userId, ['DOCTOR']);
+
+    const encounter = await this.getOpenEncounter(hospitalId, encounterId);
+
+    if (encounter.status !== EmergencyEncounterStatus.IN_TREATMENT) {
+      throw new BadRequestException(
+        'Emergency treatment must be started before prescribing.',
+      );
+    }
+
+    if (encounter.assignedDoctorId && encounter.assignedDoctorId !== userId) {
+      throw new ForbiddenException(
+        'This encounter is assigned to another doctor.',
+      );
+    }
+
+    // Emergency prescriptions require an identified patient
+    // in this initial implementation.
+    if (!encounter.patientId) {
+      throw new BadRequestException(
+        'Identify and link the patient before creating a prescription.',
+      );
+    }
+
+    const medicineIds = [...new Set(dto.items.map((item) => item.medicineId))];
+
+    if (medicineIds.length !== dto.items.length) {
+      throw new BadRequestException(
+        'A medicine must not appear more than once in this prescription. Combine its quantity instead.',
+      );
+    }
+
+    const medicines = await this.prisma.medicine.findMany({
+      where: {
+        id: {
+          in: medicineIds,
+        },
+        hospitalId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    if (medicines.length !== medicineIds.length) {
+      throw new BadRequestException(
+        'One or more medicines do not belong to this hospital or are inactive.',
+      );
+    }
+
+    const medicineMap = new Map(
+      medicines.map((medicine) => [medicine.id, medicine]),
+    );
+
+    for (const item of dto.items) {
+      const medicine = medicineMap.get(item.medicineId);
+
+      if (!medicine) {
+        throw new BadRequestException('Invalid medicine selected.');
+      }
+
+      // Use the trusted catalogue name, not a client-supplied name.
+      item.medicineName = medicine.name;
+    }
+
+    return this.prisma.prescription.create({
+      data: {
+        visitId: null,
+        emergencyEncounterId: encounterId,
+        doctorId: userId,
+        status: 'ACTIVE',
+        notes: dto.notes,
+
+        items: {
+          create: dto.items.map((item) => ({
+            medicineId: item.medicineId,
+            medicineName: item.medicineName,
+            dosage: item.dosage,
+            frequency: item.frequency,
+            duration: item.duration,
+            quantity: item.quantity,
+            instructions: item.instructions,
+          })),
+        },
+      },
+      include: {
+        items: true,
+      },
+    });
   }
 }

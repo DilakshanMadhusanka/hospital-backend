@@ -25,6 +25,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { CreateEmergencyAssessmentDto } from './dto/create-emergency-assessment.dto.js';
 import { CreateEmergencyObservationDto } from './dto/create-emergency-observation.dto.js';
 
+import { CreateEmergencyPrescriptionDto } from './dto/create-emergency-prescription.dto.js';
+
 @Controller('emergency')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmergencyController {
@@ -171,6 +173,22 @@ export class EmergencyController {
       hospitalId,
       user.id,
       encounterId,
+    );
+  }
+
+  @Post('encounters/:encounterId/prescriptions')
+  @Permissions('emergency.prescriptions.create')
+  createEmergencyPrescription(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateEmergencyPrescriptionDto,
+  ) {
+    return this.emergencyService.createEmergencyPrescription(
+      hospitalId,
+      user.id,
+      encounterId,
+      dto,
     );
   }
 }

@@ -298,6 +298,11 @@ export const permissions = [
     code: 'emergency.investigations.read',
     description: 'View emergency laboratory and radiology investigations',
   },
+
+  {
+    code: 'emergency.prescriptions.create',
+    description: 'Create emergency medication prescriptions',
+  },
 ];
 
 export const roles = [
