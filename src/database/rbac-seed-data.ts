@@ -151,6 +151,19 @@ export const permissions = [
     code: 'radiology.requests.manage',
     description: 'Manage radiology request statuses',
   },
+
+  {
+    code: 'radiology.appointments.create',
+    description: 'Schedule radiology appointments',
+  },
+  {
+    code: 'radiology.appointments.read',
+    description: 'View radiology appointments',
+  },
+  {
+    code: 'radiology.appointments.manage',
+    description: 'Manage radiology appointments',
+  },
 ];
 
 export const roles = [

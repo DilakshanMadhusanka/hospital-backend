@@ -22,6 +22,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
 import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 
+import { CreateRadiologyAppointmentDto } from './dto/create-radiology-appointment.dto.js';
+
+import { QueryRadiologyAppointmentsDto } from './dto/query-radiology-appointments.dto.js';
+
+import { UpdateRadiologyAppointmentStatusDto } from './dto/update-radiology-appointment-status.dto.js';
+
 @Controller('radiology')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RadiologyController {
@@ -34,11 +40,7 @@ export class RadiologyController {
     @CurrentUser() user: { id: string },
     @Body() dto: CreateRadiologyRequestDto,
   ) {
-    return this.radiologyService.createRequest(
-      hospitalId,
-      user.id,
-      dto,
-    );
+    return this.radiologyService.createRequest(hospitalId, user.id, dto);
   }
 
   @Get('requests')
@@ -48,11 +50,7 @@ export class RadiologyController {
     @CurrentUser() user: { id: string },
     @Query() filters: QueryRadiologyRequestsDto,
   ) {
-    return this.radiologyService.getRequests(
-      hospitalId,
-      user.id,
-      filters,
-    );
+    return this.radiologyService.getRequests(hospitalId, user.id, filters);
   }
 
   @Get('requests/:requestId')
@@ -62,11 +60,7 @@ export class RadiologyController {
     @CurrentUser() user: { id: string },
     @Param('requestId') requestId: string,
   ) {
-    return this.radiologyService.getRequestById(
-      hospitalId,
-      user.id,
-      requestId,
-    );
+    return this.radiologyService.getRequestById(hospitalId, user.id, requestId);
   }
 
   @Patch('requests/:requestId/status')
@@ -82,6 +76,56 @@ export class RadiologyController {
       user.id,
       requestId,
       dto.status as RadiologyRequestStatus,
+    );
+  }
+
+  @Post('appointments')
+  @Permissions('radiology.appointments.create')
+  createAppointment(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateRadiologyAppointmentDto,
+  ) {
+    return this.radiologyService.createAppointment(hospitalId, user.id, dto);
+  }
+
+  @Get('appointments')
+  @Permissions('radiology.appointments.read')
+  getAppointments(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Query() filters: QueryRadiologyAppointmentsDto,
+  ) {
+    return this.radiologyService.getAppointments(hospitalId, user.id, filters);
+  }
+
+  @Get('appointments/:appointmentId')
+  @Permissions('radiology.appointments.read')
+  getAppointmentById(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Param('appointmentId') appointmentId: string,
+  ) {
+    return this.radiologyService.getAppointmentById(
+      hospitalId,
+      user.id,
+      appointmentId,
+    );
+  }
+
+  @Patch('appointments/:appointmentId/status')
+  @Permissions('radiology.appointments.manage')
+  updateAppointmentStatus(
+    @Query('hospitalId') hospitalId: string,
+    @CurrentUser() user: { id: string },
+    @Param('appointmentId') appointmentId: string,
+    @Body() dto: UpdateRadiologyAppointmentStatusDto,
+  ) {
+    return this.radiologyService.updateAppointmentStatus(
+      hospitalId,
+      user.id,
+      appointmentId,
+      dto.status,
     );
   }
 }
