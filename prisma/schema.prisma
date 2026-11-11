@@ -312,6 +312,7 @@ model Hospital {
   labRequests         LabRequest[]
   radiologyProcedures RadiologyProcedure[]
   imagingEquipment    ImagingEquipment[]
+  radiologyRequests   RadiologyRequest[]
 
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -352,6 +353,7 @@ model Department {
   pharmacyDispenses   PharmacyDispense[]
   radiologyProcedures RadiologyProcedure[]
   imagingEquipment    ImagingEquipment[]
+  radiologyRequests   RadiologyRequest[]
 
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -494,6 +496,7 @@ model User {
   purchaseOrders                PurchaseOrder[]
   stockMovements                StockMovement[]
   pharmacyDispenses             PharmacyDispense[]
+  radiologyRequestsCreated      RadiologyRequest[]
 
   @@index([status])
   @@index([lastName, firstName])
@@ -631,9 +634,10 @@ model Patient {
   opdVisits      OPDVisit[]
   ipdAdmissions  IPDAdmission[]
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  labRequests LabRequest[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  labRequests       LabRequest[]
+  radiologyRequests RadiologyRequest[]
 
   @@index([nationalId])
   @@index([lastName, firstName])
@@ -772,13 +776,14 @@ model OPDVisit {
   department Department @relation(fields: [departmentId], references: [id])
   doctor     User?      @relation("OPDDoctor", fields: [doctorId], references: [id])
 
-  consultation   Consultation?
-  vitalSigns     VitalSigns[]
-  prescriptions  Prescription[]
-  investigations InvestigationRequest[]
-  user           User?                  @relation(fields: [userId], references: [id])
-  userId         String?                @db.Uuid
-  labRequests    LabRequest[]
+  consultation      Consultation?
+  vitalSigns        VitalSigns[]
+  prescriptions     Prescription[]
+  investigations    InvestigationRequest[]
+  user              User?                  @relation(fields: [userId], references: [id])
+  userId            String?                @db.Uuid
+  labRequests       LabRequest[]
+  radiologyRequests RadiologyRequest[]
 
   @@unique([hospitalId, departmentId, visitDate, tokenNumber])
   @@index([hospitalId, departmentId, visitDate, status])
@@ -963,10 +968,11 @@ model IPDAdmission {
   admittedBy      User  @relation("IPDAdmittedBy", fields: [admittedById], references: [id])
   attendingDoctor User? @relation("IPDAttendingDoctor", fields: [attendingDoctorId], references: [id])
 
-  bedAllocations IPDBedAllocation[]
-  observations   IPDObservation[]
-  nursingNotes   IPDNursingNote[]
-  labRequests    LabRequest[]
+  bedAllocations    IPDBedAllocation[]
+  observations      IPDObservation[]
+  nursingNotes      IPDNursingNote[]
+  labRequests       LabRequest[]
+  radiologyRequests RadiologyRequest[]
 
   @@index([hospitalId, status])
   @@index([patientId])
@@ -1390,7 +1396,7 @@ model RadiologyProcedure {
   hospital   Hospital    @relation(fields: [hospitalId], references: [id])
   department Department? @relation(fields: [departmentId], references: [id])
 
-  // requests RadiologyRequest[]
+  requests RadiologyRequest[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1432,6 +1438,52 @@ model ImagingEquipment {
   @@index([hospitalId, modality, status])
   @@index([departmentId])
   @@map("imaging_equipment")
+}
+
+model RadiologyRequest {
+  id String @id @default(uuid()) @db.Uuid
+
+  requestNumber String
+
+  hospitalId   String @db.Uuid
+  departmentId String @db.Uuid
+  patientId    String @db.Uuid
+  procedureId  String @db.Uuid
+
+  // A request must originate from an OPD visit or an IPD admission.
+  // The service will enforce that exactly one is supplied.
+  opdVisitId     String?
+  ipdAdmissionId String?
+
+  requestedById String @db.Uuid
+
+  clinicalIndication String
+  priority           RadiologyPriority      @default(ROUTINE)
+  status             RadiologyRequestStatus @default(REQUESTED)
+  notes              String?
+
+  requestedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hospital    Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  department  Department         @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  patient     Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  procedure   RadiologyProcedure @relation(fields: [procedureId], references: [id], onDelete: Restrict)
+  requestedBy User               @relation(fields: [requestedById], references: [id], onDelete: Restrict)
+
+  opdVisit     OPDVisit?     @relation(fields: [opdVisitId], references: [id], onDelete: Restrict)
+  ipdAdmission IPDAdmission? @relation(fields: [ipdAdmissionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@unique([hospitalId, requestNumber])
+  @@index([hospitalId, status, requestedAt])
+  @@index([hospitalId, patientId])
+  @@index([hospitalId, departmentId, requestedAt])
+  @@index([procedureId, status])
+  @@index([opdVisitId])
+  @@index([ipdAdmissionId])
+  @@map("radiology_requests")
 }
 
 // ======================================================
