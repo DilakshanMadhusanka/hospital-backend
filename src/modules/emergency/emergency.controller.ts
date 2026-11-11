@@ -22,6 +22,9 @@ import { PermissionsGuard } from '../rbac/guards/permissions.guard.js';
 import { Permissions } from '../rbac/decorators/permissions.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 
+import { CreateEmergencyAssessmentDto } from './dto/create-emergency-assessment.dto.js';
+import { CreateEmergencyObservationDto } from './dto/create-emergency-observation.dto.js';
+
 @Controller('emergency')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmergencyController {
@@ -105,6 +108,52 @@ export class EmergencyController {
     @CurrentUser() user: { id: string },
   ) {
     return this.emergencyService.startEmergencyTreatment(
+      hospitalId,
+      user.id,
+      encounterId,
+    );
+  }
+
+  @Post('encounters/:encounterId/clinical-assessments')
+  @Permissions('emergency.assessments.create')
+  createClinicalAssessment(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateEmergencyAssessmentDto,
+  ) {
+    return this.emergencyService.createClinicalAssessment(
+      hospitalId,
+      user.id,
+      encounterId,
+      dto,
+    );
+  }
+
+  @Post('encounters/:encounterId/observations')
+  @Permissions('emergency.observations.create')
+  createObservation(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateEmergencyObservationDto,
+  ) {
+    return this.emergencyService.createObservation(
+      hospitalId,
+      user.id,
+      encounterId,
+      dto,
+    );
+  }
+
+  @Get('encounters/:encounterId/clinical-record')
+  @Permissions('emergency.clinical-record.read')
+  getClinicalRecord(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.emergencyService.getClinicalRecord(
       hospitalId,
       user.id,
       encounterId,

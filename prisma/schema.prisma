@@ -15,6 +15,11 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum EmergencyAssessmentType {
+  INITIAL
+  REASSESSMENT
+}
+
 enum EmergencyArrivalMode {
   WALK_IN
   AMBULANCE
@@ -570,8 +575,10 @@ model User {
   emergencyEncountersRegistered EmergencyEncounter[]   @relation("EmergencyEncounterRegistrar")
   emergencyTriagesAssessed      EmergencyTriage[]      @relation("EmergencyTriageAssessor")
 
-  emergencyEncountersAsDoctor EmergencyEncounter[] @relation("EmergencyAssignedDoctor")
-  emergencyEncountersAsNurse  EmergencyEncounter[] @relation("EmergencyAssignedNurse")
+  emergencyEncountersAsDoctor  EmergencyEncounter[]          @relation("EmergencyAssignedDoctor")
+  emergencyEncountersAsNurse   EmergencyEncounter[]          @relation("EmergencyAssignedNurse")
+  emergencyClinicalAssessments EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
+  emergencyObservations        EmergencyObservation[]        @relation("EmergencyObservationRecorder")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1859,10 +1866,12 @@ model EmergencyEncounter {
   calledAt           DateTime?
   treatmentStartedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?  @db.Uuid
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  user                User?                         @relation(fields: [userId], references: [id])
+  userId              String?                       @db.Uuid
+  clinicalAssessments EmergencyClinicalAssessment[]
+  observations        EmergencyObservation[]
 
   @@unique([hospitalId, encounterNumber])
   @@index([hospitalId, status, arrivedAt])
@@ -1904,6 +1913,63 @@ model EmergencyTriage {
   @@index([category, assessedAt])
   @@index([assessedById, assessedAt])
   @@map("emergency_triages")
+}
+
+model EmergencyClinicalAssessment {
+  id           String @id @default(uuid()) @db.Uuid
+  hospitalId   String @db.Uuid
+  encounterId  String @db.Uuid
+  assessedById String @db.Uuid
+
+  assessmentType EmergencyAssessmentType @default(INITIAL)
+
+  presentingComplaint     String
+  historyOfPresentIllness String?
+  relevantMedicalHistory  String?
+  examinationFindings     String?
+  provisionalDiagnosis    String
+  differentialDiagnosis   String?
+  treatmentPlan           String
+  clinicalNotes           String?
+
+  assessedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  encounter  EmergencyEncounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  assessedBy User               @relation("EmergencyClinicalAssessor", fields: [assessedById], references: [id], onDelete: Restrict)
+
+  @@index([hospitalId, encounterId, assessedAt])
+  @@index([assessedById, assessedAt])
+  @@map("emergency_clinical_assessments")
+}
+
+model EmergencyObservation {
+  id           String @id @default(uuid()) @db.Uuid
+  hospitalId   String @db.Uuid
+  encounterId  String @db.Uuid
+  recordedById String @db.Uuid
+
+  temperatureC       Float?
+  systolicBP         Int?
+  diastolicBP        Int?
+  pulseRate          Int?
+  respiratoryRate    Int?
+  oxygenSaturation   Float?
+  painScore          Int?
+  bloodGlucoseMmol   Float?
+  consciousnessLevel String?
+  notes              String?
+
+  recordedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  encounter  EmergencyEncounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  recordedBy User               @relation("EmergencyObservationRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+
+  @@index([hospitalId, encounterId, recordedAt])
+  @@index([recordedById, recordedAt])
+  @@map("emergency_observations")
 }
 
 // ======================================================

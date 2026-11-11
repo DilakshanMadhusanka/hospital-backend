@@ -280,6 +280,19 @@ export const permissions = [
     code: 'emergency.treatment.start',
     description: 'Start emergency patient treatment',
   },
+
+  {
+    code: 'emergency.assessments.create',
+    description: 'Create emergency clinical assessments',
+  },
+  {
+    code: 'emergency.observations.create',
+    description: 'Record emergency patient observations',
+  },
+  {
+    code: 'emergency.clinical-record.read',
+    description: 'View emergency clinical records',
+  },
 ];
 
 export const roles = [

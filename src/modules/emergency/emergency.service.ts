@@ -6,6 +6,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 
+import { CreateEmergencyAssessmentDto } from './dto/create-emergency-assessment.dto.js';
+import { CreateEmergencyObservationDto } from './dto/create-emergency-observation.dto.js';
+
 import {
   EmergencyTriageCategory,
   EmergencyEncounterStatus,
@@ -509,5 +512,266 @@ export class EmergencyService {
         },
       },
     });
+  }
+
+  private async verifyClinicalRole(
+    hospitalId: string,
+    userId: string,
+    allowedRoles: string[],
+  ) {
+    const assignment = await this.prisma.userRole.findFirst({
+      where: {
+        hospitalId,
+        userId,
+        role: {
+          name: {
+            in: allowedRoles,
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have the required clinical role at this hospital.',
+      );
+    }
+  }
+
+  private async getOpenEncounter(hospitalId: string, encounterId: string) {
+    const encounter = await this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+    });
+
+    if (!encounter) {
+      throw new NotFoundException('Emergency encounter not found.');
+    }
+
+    const closedStatuses: EmergencyEncounterStatus[] = [
+      EmergencyEncounterStatus.ADMITTED,
+      EmergencyEncounterStatus.TRANSFERRED,
+      EmergencyEncounterStatus.DISCHARGED,
+      EmergencyEncounterStatus.LEFT_WITHOUT_BEING_SEEN,
+      EmergencyEncounterStatus.DECEASED,
+      EmergencyEncounterStatus.CANCELLED,
+    ];
+
+    if (closedStatuses.includes(encounter.status)) {
+      throw new BadRequestException('This emergency encounter is closed.');
+    }
+
+    return encounter;
+  }
+
+  async createClinicalAssessment(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+    dto: CreateEmergencyAssessmentDto,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    await this.verifyClinicalRole(hospitalId, userId, ['DOCTOR']);
+
+    const encounter = await this.getOpenEncounter(hospitalId, encounterId);
+
+    if (encounter.status !== EmergencyEncounterStatus.IN_TREATMENT) {
+      throw new BadRequestException(
+        'Start emergency treatment before recording a clinical assessment.',
+      );
+    }
+
+    if (encounter.assignedDoctorId && encounter.assignedDoctorId !== userId) {
+      throw new ForbiddenException(
+        'This encounter is assigned to another doctor.',
+      );
+    }
+
+    const existingInitialAssessment =
+      dto.assessmentType === 'INITIAL'
+        ? await this.prisma.emergencyClinicalAssessment.findFirst({
+            where: {
+              hospitalId,
+              encounterId,
+              assessmentType: 'INITIAL',
+            },
+          })
+        : null;
+
+    if (existingInitialAssessment) {
+      throw new ConflictException(
+        'An initial assessment already exists. Record a reassessment instead.',
+      );
+    }
+
+    return this.prisma.emergencyClinicalAssessment.create({
+      data: {
+        hospitalId,
+        encounterId,
+        assessedById: userId,
+        assessmentType: dto.assessmentType,
+        presentingComplaint: dto.presentingComplaint,
+        historyOfPresentIllness: dto.historyOfPresentIllness,
+        relevantMedicalHistory: dto.relevantMedicalHistory,
+        examinationFindings: dto.examinationFindings,
+        provisionalDiagnosis: dto.provisionalDiagnosis,
+        differentialDiagnosis: dto.differentialDiagnosis,
+        treatmentPlan: dto.treatmentPlan,
+        clinicalNotes: dto.clinicalNotes,
+      },
+      include: {
+        assessedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createObservation(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+    dto: CreateEmergencyObservationDto,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    await this.verifyClinicalRole(hospitalId, userId, ['DOCTOR', 'NURSE']);
+
+    const encounter = await this.getOpenEncounter(hospitalId, encounterId);
+
+    if (
+      encounter.status !== EmergencyEncounterStatus.CALLED &&
+      encounter.status !== EmergencyEncounterStatus.IN_TREATMENT
+    ) {
+      throw new BadRequestException(
+        'Observations can only be recorded after the patient has been called.',
+      );
+    }
+
+    if (
+      encounter.assignedNurseId &&
+      encounter.assignedNurseId !== userId &&
+      !(await this.prisma.userRole.findFirst({
+        where: {
+          hospitalId,
+          userId,
+          role: {
+            name: 'DOCTOR',
+          },
+        },
+      }))
+    ) {
+      throw new ForbiddenException(
+        'This encounter is assigned to another nurse.',
+      );
+    }
+
+    const hasObservation = Object.entries(dto).some(
+      ([key, value]) => key !== 'notes' && value !== undefined,
+    );
+
+    if (!hasObservation && !dto.notes) {
+      throw new BadRequestException(
+        'Provide at least one observation or a clinical note.',
+      );
+    }
+
+    return this.prisma.emergencyObservation.create({
+      data: {
+        hospitalId,
+        encounterId,
+        recordedById: userId,
+        temperatureC: dto.temperatureC,
+        systolicBP: dto.systolicBP,
+        diastolicBP: dto.diastolicBP,
+        pulseRate: dto.pulseRate,
+        respiratoryRate: dto.respiratoryRate,
+        oxygenSaturation: dto.oxygenSaturation,
+        painScore: dto.painScore,
+        bloodGlucoseMmol: dto.bloodGlucoseMmol,
+        consciousnessLevel: dto.consciousnessLevel,
+        notes: dto.notes,
+      },
+      include: {
+        recordedBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  }
+
+  async getClinicalRecord(
+    hospitalId: string,
+    userId: string,
+    encounterId: string,
+  ) {
+    await this.verifyHospitalAccess(hospitalId, userId);
+
+    const encounter = await this.prisma.emergencyEncounter.findFirst({
+      where: {
+        id: encounterId,
+        hospitalId,
+      },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            patientNumber: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        clinicalAssessments: {
+          orderBy: {
+            assessedAt: 'desc',
+          },
+          include: {
+            assessedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        observations: {
+          orderBy: {
+            recordedAt: 'desc',
+          },
+          include: {
+            recordedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        triages: {
+          orderBy: {
+            assessedAt: 'desc',
+          },
+        },
+      },
+    });
+
+    if (!encounter) {
+      throw new NotFoundException('Emergency encounter not found.');
+    }
+
+    return encounter;
   }
 }
