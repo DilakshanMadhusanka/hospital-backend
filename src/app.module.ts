@@ -22,6 +22,7 @@ import { StaffRostersModule } from './modules/staff-rosters/staff-rosters.module
 import { StaffAttendanceModule } from './modules/staff-attendance/staff-attendance.module.js';
 import { StaffLeaveModule } from './modules/staff-leave/staff-leave.module.js';
 import { AssetManagementModule } from './modules/asset-management/asset-management.module.js';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module.js';
 
 @Module({
   imports: [
@@ -52,7 +53,8 @@ import { AssetManagementModule } from './modules/asset-management/asset-manageme
     StaffRostersModule,
     StaffAttendanceModule,
     StaffLeaveModule,
-    AssetManagementModule
+    AssetManagementModule,
+    MaintenanceModule
   ],
 })
 export class AppModule {}

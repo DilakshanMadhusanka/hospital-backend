@@ -369,6 +369,23 @@ export const permissions = [
     code: 'assets.read',
     description: 'View hospital asset register and movement history',
   },
+
+  {
+    code: 'maintenance.requests.create',
+    description: 'Report hospital maintenance requests',
+  },
+  {
+    code: 'maintenance.requests.read',
+    description: 'View hospital maintenance requests and reports',
+  },
+  {
+    code: 'maintenance.requests.manage',
+    description: 'Review, approve, reject and assign maintenance requests',
+  },
+  {
+    code: 'maintenance.work.manage',
+    description: 'Manage maintenance work, status updates, parts and work logs',
+  },
 ];
 
 export const roles = [
