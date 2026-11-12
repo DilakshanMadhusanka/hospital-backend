@@ -15,6 +15,33 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum HospitalAssetStatus {
+  AVAILABLE
+  IN_USE
+  UNDER_MAINTENANCE
+  OUT_OF_SERVICE
+  LOST
+  DISPOSED
+}
+
+enum HospitalAssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum AssetMovementType {
+  INITIAL_REGISTRATION
+  ASSIGNMENT
+  TRANSFER
+  RETURN
+  MAINTENANCE
+  MAINTENANCE_COMPLETED
+  DISPOSAL
+}
+
 enum StaffLeaveStatus {
   PENDING
   APPROVED
@@ -419,6 +446,9 @@ model Hospital {
   staffLeaveTypes        StaffLeaveType[]
   staffLeaveBalances     StaffLeaveBalance[]
   staffLeaveApplications StaffLeaveApplication[]
+  assetCategories        AssetCategory[]
+  assets                 HospitalAsset[]
+  assetMovements         AssetMovement[]
 
   @@index([district])
   @@index([type, status])
@@ -460,6 +490,7 @@ model Department {
   emergencyEncounters  EmergencyEncounter[]
   hospitalShifts       HospitalShift[]
   staffDutyAssignments StaffDutyAssignment[]
+  hospitalAssets       HospitalAsset[]       @relation
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -481,11 +512,12 @@ model Ward {
 
   beds Bed[]
 
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  ipdtransfers     IPDTransfer[] @relation("IPDTransferWard")
-  ipdTransfersFrom IPDTransfer[] @relation("IPDTransferFromWard")
-  ipdTransfersTo   IPDTransfer[] @relation("IPDTransferToWard")
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  ipdtransfers     IPDTransfer[]   @relation("IPDTransferWard")
+  ipdTransfersFrom IPDTransfer[]   @relation("IPDTransferFromWard")
+  ipdTransfersTo   IPDTransfer[]   @relation("IPDTransferToWard")
+  hospitalAssets   HospitalAsset[]
 
   @@unique([hospitalId, code])
   @@index([departmentId])
@@ -634,6 +666,10 @@ model User {
   staffLeaveApplications          StaffLeaveApplication[]
   staffLeaveApplicationsSubmitted StaffLeaveApplication[]       @relation("StaffLeaveApplicant")
   staffLeaveApplicationsReviewed  StaffLeaveApplication[]       @relation("StaffLeaveReviewer")
+  hospitalAssets                  HospitalAsset[]
+  assetMovements                  AssetMovement[]
+  assetsRegistered                HospitalAsset[]               @relation("AssetRegisteredBy")
+  assetMovementsPerformed         AssetMovement[]               @relation("AssetMovementPerformedBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -737,6 +773,7 @@ model HospitalStaffAssignment {
   staffDutyAssignments   StaffDutyAssignment[]
   staffLeaveApplications StaffLeaveApplication[]
   leaveBalances          StaffLeaveBalance[]
+  hospitalAssets         HospitalAsset[]
 
   @@unique([hospitalId, employeeNumber])
   @@index([userId, hospitalId])
@@ -2277,6 +2314,115 @@ model StaffLeaveApplication {
   @@index([staffAssignmentId, startDate, endDate])
   @@index([applicantId, createdAt])
   @@map("staff_leave_applications")
+}
+
+model AssetCategory {
+  id          String  @id @default(uuid()) @db.Uuid
+  hospitalId  String  @db.Uuid
+  code        String
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  hospital Hospital        @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  assets   HospitalAsset[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hospitalId, code])
+  @@index([hospitalId, isActive])
+  @@map("asset_categories")
+}
+
+model HospitalAsset {
+  id         String @id @default(uuid()) @db.Uuid
+  hospitalId String @db.Uuid
+  categoryId String @db.Uuid
+
+  assetCode    String
+  name         String
+  description  String?
+  manufacturer String?
+  modelNumber  String?
+  serialNumber String?
+
+  purchaseDate       DateTime? @db.Date
+  purchasePrice      Decimal?  @db.Decimal(14, 2)
+  supplierName       String?
+  warrantyExpiryDate DateTime? @db.Date
+
+  condition HospitalAssetCondition @default(GOOD)
+  status    HospitalAssetStatus    @default(AVAILABLE)
+
+  departmentId              String? @db.Uuid
+  wardId                    String? @db.Uuid
+  assignedStaffAssignmentId String? @db.Uuid
+
+  locationDescription String?
+  notes               String?
+
+  registeredById String    @db.Uuid
+  disposedAt     DateTime?
+  disposalReason String?
+
+  hospital Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  category AssetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  ward       Ward?       @relation(fields: [wardId], references: [id], onDelete: Restrict)
+
+  assignedStaffAssignment HospitalStaffAssignment? @relation(fields: [assignedStaffAssignmentId], references: [id], onDelete: Restrict)
+
+  registeredBy User @relation("AssetRegisteredBy", fields: [registeredById], references: [id], onDelete: Restrict)
+
+  movements AssetMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@unique([hospitalId, assetCode])
+  @@index([hospitalId, status])
+  @@index([hospitalId, categoryId])
+  @@index([hospitalId, departmentId])
+  @@index([hospitalId, serialNumber])
+  @@map("hospital_assets")
+}
+
+model AssetMovement {
+  id         String @id @default(uuid()) @db.Uuid
+  hospitalId String @db.Uuid
+  assetId    String @db.Uuid
+
+  movementType AssetMovementType
+
+  fromDepartmentId String? @db.Uuid
+  toDepartmentId   String? @db.Uuid
+
+  fromWardId String? @db.Uuid
+  toWardId   String? @db.Uuid
+
+  fromStaffAssignmentId String? @db.Uuid
+  toStaffAssignmentId   String? @db.Uuid
+
+  reason String?
+  notes  String?
+
+  performedById String   @db.Uuid
+  performedAt   DateTime @default(now())
+
+  asset       HospitalAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  hospital    Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  performedBy User          @relation("AssetMovementPerformedBy", fields: [performedById], references: [id], onDelete: Restrict)
+  user        User?         @relation(fields: [userId], references: [id])
+  userId      String?       @db.Uuid
+
+  @@index([hospitalId, performedAt])
+  @@index([assetId, performedAt])
+  @@index([performedById, performedAt])
+  @@map("asset_movements")
 }
 
 // ======================================================

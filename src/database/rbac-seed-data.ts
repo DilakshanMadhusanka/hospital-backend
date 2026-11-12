@@ -359,6 +359,16 @@ export const permissions = [
     code: 'staff.leave.apply',
     description: 'Apply for leave and view own leave records',
   },
+
+  {
+    code: 'assets.manage',
+    description:
+      'Register, update, assign, transfer and dispose hospital assets',
+  },
+  {
+    code: 'assets.read',
+    description: 'View hospital asset register and movement history',
+  },
 ];
 
 export const roles = [
