@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 
 import { EmergencyController } from './emergency.controller.js';
 import { EmergencyService } from './emergency.service.js';
+import { EmergencyDispositionModule } from './emergency-disposition.module.js';
 
 import { DatabaseModule } from '../../database/database.module.js';
 import { RbacModule } from '../rbac/rbac.module.js';
@@ -11,6 +12,7 @@ import { RbacModule } from '../rbac/rbac.module.js';
   imports: [
     DatabaseModule,
     RbacModule,
+    EmergencyDispositionModule,
   ],
   controllers: [
     EmergencyController,

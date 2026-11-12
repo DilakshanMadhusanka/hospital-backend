@@ -27,10 +27,16 @@ import { CreateEmergencyObservationDto } from './dto/create-emergency-observatio
 
 import { CreateEmergencyPrescriptionDto } from './dto/create-emergency-prescription.dto.js';
 
+import { EmergencyDispositionService } from './emergency-disposition.service.js';
+import { CreateEmergencyDispositionDto } from './dto/create-emergency-disposition.dto.js';
+
 @Controller('emergency')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmergencyController {
-  constructor(private readonly emergencyService: EmergencyService) {}
+  constructor(
+    private readonly emergencyService: EmergencyService,
+    private readonly dispositionService: EmergencyDispositionService,
+  ) {}
 
   @Post('encounters')
   @Permissions('emergency.encounters.create')
@@ -189,6 +195,36 @@ export class EmergencyController {
       user.id,
       encounterId,
       dto,
+    );
+  }
+
+  @Post('encounters/:encounterId/disposition')
+  @Permissions('emergency.disposition.create')
+  createDisposition(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateEmergencyDispositionDto,
+  ) {
+    return this.dispositionService.createDisposition(
+      hospitalId,
+      user.id,
+      encounterId,
+      dto,
+    );
+  }
+
+  @Get('encounters/:encounterId/disposition')
+  @Permissions('emergency.disposition.read')
+  getDisposition(
+    @Query('hospitalId') hospitalId: string,
+    @Param('encounterId') encounterId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.dispositionService.getDisposition(
+      hospitalId,
+      user.id,
+      encounterId,
     );
   }
 }

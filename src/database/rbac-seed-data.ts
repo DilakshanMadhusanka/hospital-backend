@@ -303,6 +303,15 @@ export const permissions = [
     code: 'emergency.prescriptions.create',
     description: 'Create emergency medication prescriptions',
   },
+
+  {
+    code: 'emergency.disposition.create',
+    description: 'Record final emergency patient outcomes',
+  },
+  {
+    code: 'emergency.disposition.read',
+    description: 'View emergency patient disposition records',
+  },
 ];
 
 export const roles = [

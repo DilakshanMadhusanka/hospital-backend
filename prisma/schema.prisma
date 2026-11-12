@@ -15,6 +15,14 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum EmergencyDispositionType {
+  ADMITTED
+  TRANSFERRED
+  DISCHARGED
+  DECEASED
+  LEFT_WITHOUT_BEING_SEEN
+}
+
 enum EmergencyAssessmentType {
   INITIAL
   REASSESSMENT
@@ -367,15 +375,16 @@ model Hospital {
   radiologyAppointments RadiologyAppointment[]
   radiologyReports      RadiologyReport[]
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  medicines           Medicine[]
-  suppliers           Supplier[]
-  purchaseOrders      PurchaseOrder[]
-  medicineBatches     MedicineBatch[]
-  stockMovements      StockMovement[]
-  pharmacyDispenses   PharmacyDispense[]
-  emergencyEncounters EmergencyEncounter[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  medicines             Medicine[]
+  suppliers             Supplier[]
+  purchaseOrders        PurchaseOrder[]
+  medicineBatches       MedicineBatch[]
+  stockMovements        StockMovement[]
+  pharmacyDispenses     PharmacyDispense[]
+  emergencyEncounters   EmergencyEncounter[]
+  emergencyDispositions EmergencyDisposition[]
 
   @@index([district])
   @@index([type, status])
@@ -575,10 +584,11 @@ model User {
   emergencyEncountersRegistered EmergencyEncounter[]   @relation("EmergencyEncounterRegistrar")
   emergencyTriagesAssessed      EmergencyTriage[]      @relation("EmergencyTriageAssessor")
 
-  emergencyEncountersAsDoctor  EmergencyEncounter[]          @relation("EmergencyAssignedDoctor")
-  emergencyEncountersAsNurse   EmergencyEncounter[]          @relation("EmergencyAssignedNurse")
-  emergencyClinicalAssessments EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
-  emergencyObservations        EmergencyObservation[]        @relation("EmergencyObservationRecorder")
+  emergencyEncountersAsDoctor   EmergencyEncounter[]          @relation("EmergencyAssignedDoctor")
+  emergencyEncountersAsNurse    EmergencyEncounter[]          @relation("EmergencyAssignedNurse")
+  emergencyClinicalAssessments  EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
+  emergencyObservations         EmergencyObservation[]        @relation("EmergencyObservationRecorder")
+  emergencyDispositionsRecorded EmergencyDisposition[]        @relation("EmergencyDispositionRecorder")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -1056,13 +1066,14 @@ model IPDAdmission {
   admittedBy      User  @relation("IPDAdmittedBy", fields: [admittedById], references: [id])
   attendingDoctor User? @relation("IPDAttendingDoctor", fields: [attendingDoctorId], references: [id])
 
-  bedAllocations    IPDBedAllocation[]
-  observations      IPDObservation[]
-  nursingNotes      IPDNursingNote[]
-  labRequests       LabRequest[]
-  radiologyRequests RadiologyRequest[]
-  transfers         IPDTransfer[]
-  dischargeRequests IPDDischargeRequest[]
+  bedAllocations       IPDBedAllocation[]
+  observations         IPDObservation[]
+  nursingNotes         IPDNursingNote[]
+  labRequests          LabRequest[]
+  radiologyRequests    RadiologyRequest[]
+  transfers            IPDTransfer[]
+  dischargeRequests    IPDDischargeRequest[]
+  emergencyDisposition EmergencyDisposition?
 
   dischargedAt   DateTime?
   dischargedById String?   @db.Uuid
@@ -1885,6 +1896,7 @@ model EmergencyEncounter {
   labRequests         LabRequest[]
   radiologyRequests   RadiologyRequest[]
   prescriptions       Prescription[]                @relation("EmergencyPrescriptions")
+  disposition         EmergencyDisposition?
 
   @@unique([hospitalId, encounterNumber])
   @@index([hospitalId, status, arrivedAt])
@@ -1983,6 +1995,45 @@ model EmergencyObservation {
   @@index([hospitalId, encounterId, recordedAt])
   @@index([recordedById, recordedAt])
   @@map("emergency_observations")
+}
+
+model EmergencyDisposition {
+  id          String @id @default(uuid()) @db.Uuid
+  hospitalId  String @db.Uuid
+  encounterId String @unique @db.Uuid
+
+  outcome EmergencyDispositionType
+
+  // Link to the existing IPD admission when admitted.
+  // IPDAdmission.id is String without @db.Uuid in the existing schema.
+  ipdAdmissionId String? @unique
+
+  // Inter-hospital transfer information.
+  receivingHospitalName    String?
+  receivingHospitalContact String?
+  transferReason           String?
+  transferNotes            String?
+
+  // Discharge documentation.
+  dischargeInstructions String?
+  followUpInstructions  String?
+  followUpDate          DateTime?
+
+  // Death documentation.
+  deathAt            DateTime?
+  deathDocumentation String?
+
+  recordedById String   @db.Uuid
+  recordedAt   DateTime @default(now())
+
+  encounter    EmergencyEncounter @relation(fields: [encounterId], references: [id], onDelete: Restrict)
+  hospital     Hospital           @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  recordedBy   User               @relation("EmergencyDispositionRecorder", fields: [recordedById], references: [id], onDelete: Restrict)
+  ipdAdmission IPDAdmission?      @relation(fields: [ipdAdmissionId], references: [id], onDelete: Restrict)
+
+  @@index([hospitalId, outcome, recordedAt])
+  @@index([recordedById, recordedAt])
+  @@map("emergency_dispositions")
 }
 
 // ======================================================
