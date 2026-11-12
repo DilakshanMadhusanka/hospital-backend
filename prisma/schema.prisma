@@ -15,6 +15,12 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum StaffDutyStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
 enum EmergencyDispositionType {
   ADMITTED
   TRANSFERRED
@@ -385,6 +391,8 @@ model Hospital {
   pharmacyDispenses     PharmacyDispense[]
   emergencyEncounters   EmergencyEncounter[]
   emergencyDispositions EmergencyDisposition[]
+  shifts                HospitalShift[]
+  staffDutyAssignments  StaffDutyAssignment[]
 
   @@index([district])
   @@index([type, status])
@@ -418,12 +426,14 @@ model Department {
   imagingEquipment    ImagingEquipment[]
   radiologyRequests   RadiologyRequest[]
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  opdvisits           OPDVisit[]
-  doctorSchedules     DoctorSchedule[]
-  labRequests         LabRequest[]
-  emergencyEncounters EmergencyEncounter[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  opdvisits            OPDVisit[]
+  doctorSchedules      DoctorSchedule[]
+  labRequests          LabRequest[]
+  emergencyEncounters  EmergencyEncounter[]
+  hospitalShifts       HospitalShift[]
+  staffDutyAssignments StaffDutyAssignment[]
 
   @@unique([hospitalId, code])
   @@index([hospitalId, status])
@@ -589,6 +599,9 @@ model User {
   emergencyClinicalAssessments  EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
   emergencyObservations         EmergencyObservation[]        @relation("EmergencyObservationRecorder")
   emergencyDispositionsRecorded EmergencyDisposition[]        @relation("EmergencyDispositionRecorder")
+  staffDutyAssignments          StaffDutyAssignment[]
+  staffDutiesAssigned           StaffDutyAssignment[]         @relation("StaffDutyAssignedBy")
+  staffDutiesCancelled          StaffDutyAssignment[]         @relation("StaffDutyCancelledBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -687,8 +700,9 @@ model HospitalStaffAssignment {
   hospital   Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  staffDutyAssignments StaffDutyAssignment[]
 
   @@unique([hospitalId, employeeNumber])
   @@index([userId, hospitalId])
@@ -2034,6 +2048,81 @@ model EmergencyDisposition {
   @@index([hospitalId, outcome, recordedAt])
   @@index([recordedById, recordedAt])
   @@map("emergency_dispositions")
+}
+
+model HospitalShift {
+  id           String  @id @default(uuid()) @db.Uuid
+  hospitalId   String  @db.Uuid
+  departmentId String? @db.Uuid
+
+  code        String
+  name        String
+  description String?
+
+  // 24-hour clock: HH:mm
+  startTime String
+  endTime   String
+
+  // True when the shift finishes on the following calendar day.
+  crossesMidnight Boolean @default(false)
+
+  isActive Boolean @default(true)
+
+  hospital   Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  assignments StaffDutyAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hospitalId, code])
+  @@index([hospitalId, departmentId, isActive])
+  @@map("hospital_shifts")
+}
+
+model StaffDutyAssignment {
+  id String @id @default(uuid()) @db.Uuid
+
+  hospitalId   String  @db.Uuid
+  departmentId String? @db.Uuid
+
+  // Links to an existing employee's hospital employment record.
+  staffAssignmentId String @db.Uuid
+
+  shiftId String @db.Uuid
+
+  // Actual date and time interval, stored in the database as timestamps.
+  dutyDate DateTime @db.Date
+  startsAt DateTime
+  endsAt   DateTime
+
+  status StaffDutyStatus @default(SCHEDULED)
+  notes  String?
+
+  assignedById       String    @db.Uuid
+  cancelledById      String?   @db.Uuid
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  hospital        Hospital                @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  department      Department?             @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  staffAssignment HospitalStaffAssignment @relation(fields: [staffAssignmentId], references: [id], onDelete: Restrict)
+  shift           HospitalShift           @relation(fields: [shiftId], references: [id], onDelete: Restrict)
+
+  assignedBy  User  @relation("StaffDutyAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  cancelledBy User? @relation("StaffDutyCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@index([hospitalId, dutyDate, status])
+  @@index([departmentId, dutyDate])
+  @@index([staffAssignmentId, startsAt, endsAt])
+  @@index([shiftId, dutyDate])
+  @@map("staff_duty_assignments")
 }
 
 // ======================================================
