@@ -312,6 +312,23 @@ export const permissions = [
     code: 'emergency.disposition.read',
     description: 'View emergency patient disposition records',
   },
+
+  {
+    code: 'staff.shifts.manage',
+    description: 'Create and manage hospital shift templates',
+  },
+  {
+    code: 'staff.shifts.read',
+    description: 'View hospital shift templates',
+  },
+  {
+    code: 'staff.rosters.manage',
+    description: 'Create and cancel staff duty assignments',
+  },
+  {
+    code: 'staff.rosters.read',
+    description: 'View staff duty rosters',
+  },
 ];
 
 export const roles = [

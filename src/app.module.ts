@@ -18,6 +18,7 @@ import { LaboratoryModule } from './modules/laboratory/laboratory.module.js';
 import { PharmacyModule } from './modules/pharmacy/pharmacy.module.js';
 import { RadiologyModule } from './modules/radiology/radiology.module.js';
 import { EmergencyModule } from './modules/emergency/emergency.module.js';
+import { StaffRostersModule } from './modules/staff-rosters/staff-rosters.module.js';
 
 @Module({
   imports: [
@@ -44,7 +45,8 @@ import { EmergencyModule } from './modules/emergency/emergency.module.js';
     LaboratoryModule,
     PharmacyModule,
     RadiologyModule,
-    EmergencyModule
+    EmergencyModule,
+    StaffRostersModule
   ],
 })
 export class AppModule {}
