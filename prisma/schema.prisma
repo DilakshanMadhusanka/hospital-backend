@@ -2144,7 +2144,7 @@ model StaffAttendance {
 
   status StaffAttendanceStatus @default(PRESENT)
 
-  checkInAt     DateTime
+  checkInAt     DateTime?
   checkOutAt    DateTime?
   minutesLate   Int       @default(0)
   minutesWorked Int?

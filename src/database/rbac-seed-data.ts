@@ -329,6 +329,23 @@ export const permissions = [
     code: 'staff.rosters.read',
     description: 'View staff duty rosters',
   },
+
+  {
+    code: 'staff.attendance.check-in',
+    description: 'Record own staff attendance check-in',
+  },
+  {
+    code: 'staff.attendance.check-out',
+    description: 'Record own staff attendance check-out',
+  },
+  {
+    code: 'staff.attendance.read',
+    description: 'View staff attendance records and reports',
+  },
+  {
+    code: 'staff.attendance.manage',
+    description: 'Correct attendance and mark staff absent',
+  },
 ];
 
 export const roles = [
