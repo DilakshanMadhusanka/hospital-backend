@@ -15,6 +15,22 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum StaffLeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum StaffLeaveCategory {
+  ANNUAL
+  CASUAL
+  MEDICAL
+  MATERNITY
+  NO_PAY
+  OTHER
+}
+
 enum StaffAttendanceStatus {
   PRESENT
   LATE
@@ -387,19 +403,22 @@ model Hospital {
   radiologyAppointments RadiologyAppointment[]
   radiologyReports      RadiologyReport[]
 
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  medicines             Medicine[]
-  suppliers             Supplier[]
-  purchaseOrders        PurchaseOrder[]
-  medicineBatches       MedicineBatch[]
-  stockMovements        StockMovement[]
-  pharmacyDispenses     PharmacyDispense[]
-  emergencyEncounters   EmergencyEncounter[]
-  emergencyDispositions EmergencyDisposition[]
-  shifts                HospitalShift[]
-  staffDutyAssignments  StaffDutyAssignment[]
-  staffAttendances      StaffAttendance[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  medicines              Medicine[]
+  suppliers              Supplier[]
+  purchaseOrders         PurchaseOrder[]
+  medicineBatches        MedicineBatch[]
+  stockMovements         StockMovement[]
+  pharmacyDispenses      PharmacyDispense[]
+  emergencyEncounters    EmergencyEncounter[]
+  emergencyDispositions  EmergencyDisposition[]
+  shifts                 HospitalShift[]
+  staffDutyAssignments   StaffDutyAssignment[]
+  staffAttendances       StaffAttendance[]
+  staffLeaveTypes        StaffLeaveType[]
+  staffLeaveBalances     StaffLeaveBalance[]
+  staffLeaveApplications StaffLeaveApplication[]
 
   @@index([district])
   @@index([type, status])
@@ -601,17 +620,20 @@ model User {
   emergencyEncountersRegistered EmergencyEncounter[]   @relation("EmergencyEncounterRegistrar")
   emergencyTriagesAssessed      EmergencyTriage[]      @relation("EmergencyTriageAssessor")
 
-  emergencyEncountersAsDoctor   EmergencyEncounter[]          @relation("EmergencyAssignedDoctor")
-  emergencyEncountersAsNurse    EmergencyEncounter[]          @relation("EmergencyAssignedNurse")
-  emergencyClinicalAssessments  EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
-  emergencyObservations         EmergencyObservation[]        @relation("EmergencyObservationRecorder")
-  emergencyDispositionsRecorded EmergencyDisposition[]        @relation("EmergencyDispositionRecorder")
-  staffDutyAssignments          StaffDutyAssignment[]
-  staffDutiesAssigned           StaffDutyAssignment[]         @relation("StaffDutyAssignedBy")
-  staffDutiesCancelled          StaffDutyAssignment[]         @relation("StaffDutyCancelledBy")
-  staffAttendances              StaffAttendance[]
-  staffAttendancesRecorded      StaffAttendance[]             @relation("AttendanceRecordedBy")
-  staffAttendancesModified      StaffAttendance[]             @relation("AttendanceModifiedBy")
+  emergencyEncountersAsDoctor     EmergencyEncounter[]          @relation("EmergencyAssignedDoctor")
+  emergencyEncountersAsNurse      EmergencyEncounter[]          @relation("EmergencyAssignedNurse")
+  emergencyClinicalAssessments    EmergencyClinicalAssessment[] @relation("EmergencyClinicalAssessor")
+  emergencyObservations           EmergencyObservation[]        @relation("EmergencyObservationRecorder")
+  emergencyDispositionsRecorded   EmergencyDisposition[]        @relation("EmergencyDispositionRecorder")
+  staffDutyAssignments            StaffDutyAssignment[]
+  staffDutiesAssigned             StaffDutyAssignment[]         @relation("StaffDutyAssignedBy")
+  staffDutiesCancelled            StaffDutyAssignment[]         @relation("StaffDutyCancelledBy")
+  staffAttendances                StaffAttendance[]
+  staffAttendancesRecorded        StaffAttendance[]             @relation("AttendanceRecordedBy")
+  staffAttendancesModified        StaffAttendance[]             @relation("AttendanceModifiedBy")
+  staffLeaveApplications          StaffLeaveApplication[]
+  staffLeaveApplicationsSubmitted StaffLeaveApplication[]       @relation("StaffLeaveApplicant")
+  staffLeaveApplicationsReviewed  StaffLeaveApplication[]       @relation("StaffLeaveReviewer")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -710,9 +732,11 @@ model HospitalStaffAssignment {
   hospital   Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  staffDutyAssignments StaffDutyAssignment[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  staffDutyAssignments   StaffDutyAssignment[]
+  staffLeaveApplications StaffLeaveApplication[]
+  leaveBalances          StaffLeaveBalance[]
 
   @@unique([hospitalId, employeeNumber])
   @@index([userId, hospitalId])
@@ -2169,6 +2193,90 @@ model StaffAttendance {
   @@index([hospitalId, status, checkInAt])
   @@index([recordedById, recordedAt])
   @@map("staff_attendances")
+}
+
+model StaffLeaveType {
+  id               String             @id @default(uuid()) @db.Uuid
+  hospitalId       String             @db.Uuid
+  code             String
+  name             String
+  category         StaffLeaveCategory
+  description      String?
+  isPaid           Boolean            @default(true)
+  requiresApproval Boolean            @default(true)
+  isActive         Boolean            @default(true)
+
+  hospital     Hospital                @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  balances     StaffLeaveBalance[]
+  applications StaffLeaveApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hospitalId, code])
+  @@index([hospitalId, isActive])
+  @@map("staff_leave_types")
+}
+
+model StaffLeaveBalance {
+  id                String @id @default(uuid()) @db.Uuid
+  hospitalId        String @db.Uuid
+  staffAssignmentId String @db.Uuid
+  leaveTypeId       String @db.Uuid
+  year              Int
+
+  entitledDays  Decimal @default(0) @db.Decimal(7, 2)
+  usedDays      Decimal @default(0) @db.Decimal(7, 2)
+  availableDays Decimal @default(0) @db.Decimal(7, 2)
+
+  hospital        Hospital                @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  staffAssignment HospitalStaffAssignment @relation(fields: [staffAssignmentId], references: [id], onDelete: Restrict)
+  leaveType       StaffLeaveType          @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([staffAssignmentId, leaveTypeId, year])
+  @@index([hospitalId, year])
+  @@map("staff_leave_balances")
+}
+
+model StaffLeaveApplication {
+  id                String @id @default(uuid()) @db.Uuid
+  hospitalId        String @db.Uuid
+  staffAssignmentId String @db.Uuid
+  leaveTypeId       String @db.Uuid
+
+  startDate    DateTime @db.Date
+  endDate      DateTime @db.Date
+  numberOfDays Decimal  @db.Decimal(7, 2)
+
+  reason        String
+  attachmentKey String?
+
+  status StaffLeaveStatus @default(PENDING)
+
+  applicantId   String    @db.Uuid
+  reviewedById  String?   @db.Uuid
+  reviewedAt    DateTime?
+  reviewComment String?
+
+  hospital        Hospital                @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  staffAssignment HospitalStaffAssignment @relation(fields: [staffAssignmentId], references: [id], onDelete: Restrict)
+  leaveType       StaffLeaveType          @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  applicant User  @relation("StaffLeaveApplicant", fields: [applicantId], references: [id], onDelete: Restrict)
+  reviewer  User? @relation("StaffLeaveReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.Uuid
+
+  @@index([hospitalId, status, startDate])
+  @@index([staffAssignmentId, startDate, endDate])
+  @@index([applicantId, createdAt])
+  @@map("staff_leave_applications")
 }
 
 // ======================================================

@@ -20,6 +20,7 @@ import { RadiologyModule } from './modules/radiology/radiology.module.js';
 import { EmergencyModule } from './modules/emergency/emergency.module.js';
 import { StaffRostersModule } from './modules/staff-rosters/staff-rosters.module.js';
 import { StaffAttendanceModule } from './modules/staff-attendance/staff-attendance.module.js';
+import { StaffLeaveModule } from './modules/staff-leave/staff-leave.module.js';
 
 @Module({
   imports: [
@@ -48,7 +49,8 @@ import { StaffAttendanceModule } from './modules/staff-attendance/staff-attendan
     RadiologyModule,
     EmergencyModule,
     StaffRostersModule,
-    StaffAttendanceModule
+    StaffAttendanceModule,
+    StaffLeaveModule
   ],
 })
 export class AppModule {}

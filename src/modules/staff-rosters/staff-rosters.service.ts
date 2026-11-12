@@ -187,6 +187,28 @@ export class StaffRostersService {
       throw new NotFoundException('Active shift not found in this hospital.');
     }
 
+    const dutyDate = new Date(`${dto.dutyDate}T00:00:00.000Z`);
+
+    const approvedLeave = await this.prisma.staffLeaveApplication.findFirst({
+      where: {
+        hospitalId,
+        staffAssignmentId: dto.staffAssignmentId,
+        status: 'APPROVED',
+        startDate: {
+          lte: dutyDate,
+        },
+        endDate: {
+          gte: dutyDate,
+        },
+      },
+    });
+
+    if (approvedLeave) {
+      throw new ConflictException(
+        'This staff member has approved leave on the selected duty date.',
+      );
+    }
+
     const staff = await this.prisma.hospitalStaffAssignment.findFirst({
       where: {
         id: dto.staffAssignmentId,
@@ -304,7 +326,7 @@ export class StaffRostersService {
               departmentId,
               staffAssignmentId: dto.staffAssignmentId,
               shiftId: dto.shiftId,
-              dutyDate: new Date(`${dto.dutyDate}T00:00:00.000Z`),
+              dutyDate,
               startsAt,
               endsAt,
               notes: dto.notes,

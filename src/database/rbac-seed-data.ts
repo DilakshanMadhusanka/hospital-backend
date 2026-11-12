@@ -346,6 +346,19 @@ export const permissions = [
     code: 'staff.attendance.manage',
     description: 'Correct attendance and mark staff absent',
   },
+
+  {
+    code: 'staff.leave.manage',
+    description: 'Configure leave types, balances and review applications',
+  },
+  {
+    code: 'staff.leave.read',
+    description: 'View hospital staff leave information',
+  },
+  {
+    code: 'staff.leave.apply',
+    description: 'Apply for leave and view own leave records',
+  },
 ];
 
 export const roles = [

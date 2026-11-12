@@ -273,6 +273,26 @@ export class StaffAttendanceService {
       );
     }
 
+    const approvedLeave = await this.prisma.staffLeaveApplication.findFirst({
+      where: {
+        hospitalId,
+        staffAssignmentId: duty.staffAssignmentId,
+        status: 'APPROVED',
+        startDate: {
+          lte: duty.dutyDate,
+        },
+        endDate: {
+          gte: duty.dutyDate,
+        },
+      },
+    });
+
+    if (approvedLeave) {
+      throw new BadRequestException(
+        'This staff member has approved leave for this duty date. Do not mark them absent.',
+      );
+    }
+
     try {
       return await this.prisma.staffAttendance.create({
         data: {
