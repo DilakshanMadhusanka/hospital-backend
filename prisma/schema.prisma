@@ -15,6 +15,12 @@ datasource db {
 // ENUMS
 // ======================================================
 
+enum StaffAttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+}
+
 enum StaffDutyStatus {
   SCHEDULED
   COMPLETED
@@ -393,6 +399,7 @@ model Hospital {
   emergencyDispositions EmergencyDisposition[]
   shifts                HospitalShift[]
   staffDutyAssignments  StaffDutyAssignment[]
+  staffAttendances      StaffAttendance[]
 
   @@index([district])
   @@index([type, status])
@@ -602,6 +609,9 @@ model User {
   staffDutyAssignments          StaffDutyAssignment[]
   staffDutiesAssigned           StaffDutyAssignment[]         @relation("StaffDutyAssignedBy")
   staffDutiesCancelled          StaffDutyAssignment[]         @relation("StaffDutyCancelledBy")
+  staffAttendances              StaffAttendance[]
+  staffAttendancesRecorded      StaffAttendance[]             @relation("AttendanceRecordedBy")
+  staffAttendancesModified      StaffAttendance[]             @relation("AttendanceModifiedBy")
 
   @@index([status])
   @@index([lastName, firstName])
@@ -2071,7 +2081,8 @@ model HospitalShift {
   hospital   Hospital    @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
 
-  assignments StaffDutyAssignment[]
+  assignments      StaffDutyAssignment[]
+  lateGraceMinutes Int                   @default(5)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2113,16 +2124,51 @@ model StaffDutyAssignment {
   assignedBy  User  @relation("StaffDutyAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
   cancelledBy User? @relation("StaffDutyCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?  @db.Uuid
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User?            @relation(fields: [userId], references: [id])
+  userId          String?          @db.Uuid
+  staffAttendance StaffAttendance?
 
   @@index([hospitalId, dutyDate, status])
   @@index([departmentId, dutyDate])
   @@index([staffAssignmentId, startsAt, endsAt])
   @@index([shiftId, dutyDate])
   @@map("staff_duty_assignments")
+}
+
+model StaffAttendance {
+  id               String @id @default(uuid()) @db.Uuid
+  hospitalId       String @db.Uuid
+  dutyAssignmentId String @unique @db.Uuid
+
+  status StaffAttendanceStatus @default(PRESENT)
+
+  checkInAt     DateTime
+  checkOutAt    DateTime?
+  minutesLate   Int       @default(0)
+  minutesWorked Int?
+
+  notes            String?
+  correctionReason String?
+
+  recordedById String  @db.Uuid
+  modifiedById String? @db.Uuid
+
+  recordedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  hospital       Hospital            @relation(fields: [hospitalId], references: [id], onDelete: Restrict)
+  dutyAssignment StaffDutyAssignment @relation(fields: [dutyAssignmentId], references: [id], onDelete: Restrict)
+  recordedBy     User                @relation("AttendanceRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  modifiedBy     User?               @relation("AttendanceModifiedBy", fields: [modifiedById], references: [id], onDelete: Restrict)
+  user           User?               @relation(fields: [userId], references: [id])
+  userId         String?             @db.Uuid
+
+  @@index([hospitalId, checkInAt])
+  @@index([hospitalId, status, checkInAt])
+  @@index([recordedById, recordedAt])
+  @@map("staff_attendances")
 }
 
 // ======================================================
