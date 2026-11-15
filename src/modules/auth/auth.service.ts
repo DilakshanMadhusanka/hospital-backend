@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../database/prisma.service.js';
@@ -23,6 +24,7 @@ export class AuthService {
     const email = dto.email.toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
+      select: { id: true },
     });
 
     if (existingUser) {
@@ -31,24 +33,43 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const user = await this.prisma.user.create({
-      data: {
-        username: email,
-        email,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        passwordHash,
-        phone: dto.phone,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        isActive: true,
-        createdAt: true,
-      },
-    });
+    let user: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      isActive: boolean;
+      createdAt: Date;
+    };
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          username: email,
+          email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          passwordHash,
+          phone: dto.phone,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Email already registered');
+      }
+
+      throw error;
+    }
 
     return {
       message: 'User registered successfully',
@@ -67,6 +88,14 @@ export class AuthService {
   private async authenticate(dto: LoginDto, requireSystemAdmin: boolean) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        passwordHash: true,
+      },
     });
 
     if (!user) {

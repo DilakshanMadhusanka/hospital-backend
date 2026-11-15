@@ -5,6 +5,7 @@ import {
   MinLength,
   MaxLength,
   Matches,
+  IsOptional,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -26,6 +27,7 @@ export class RegisterDto {
   @MaxLength(72)
   password: string;
 
+  @IsOptional()
   @IsString()
   @Matches(/^[0-9+\-\s()]{7,20}$/)
   phone?: string;
