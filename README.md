@@ -49,6 +49,23 @@ link (the `POST /auth/admin-login` endpoint); the standard login remains
 available to other users. Never expose bootstrap configuration or credentials
 in the frontend.
 
+## Sample data for development
+
+After migrations and at least one active user exist, run the idempotent demo
+seed in a non-production environment:
+
+```bash
+npm run seed:demo
+```
+
+It creates or refreshes synthetic records for the demo hospital across patient
+registration, OPD/IPD, emergency, laboratory, pharmacy, radiology, staff,
+reports, assets, maintenance, and hospital settings. The records use
+representative workflow states such as waiting, admitted, completed, ordered,
+pending, and in progress. Existing records outside the `DEMO-*` sample data are
+not modified. The command refuses to run when `NODE_ENV=production`; it is not
+run automatically during application startup.
+
 ## Compile and run the project
 
 ```bash

@@ -1172,12 +1172,12 @@ model IPDAdmission {
   id              String @id @default(uuid())
   admissionNumber String @unique
 
-  patientId    String
-  hospitalId   String
-  departmentId String
+  patientId    String @db.Uuid
+  hospitalId   String @db.Uuid
+  departmentId String @db.Uuid
 
-  admittedById      String
-  attendingDoctorId String?
+  admittedById      String  @db.Uuid
+  attendingDoctorId String? @db.Uuid
 
   admissionDate DateTime  @default(now())
   dischargeDate DateTime?
@@ -1225,10 +1225,10 @@ model IPDBedAllocation {
   id String @id @default(uuid())
 
   admissionId String
-  bedId       String
+  bedId       String @db.Uuid
 
-  allocatedById String
-  releasedById  String?
+  allocatedById String  @db.Uuid
+  releasedById  String? @db.Uuid
 
   allocatedAt DateTime  @default(now())
   releasedAt  DateTime?
@@ -1259,7 +1259,7 @@ model IPDObservation {
   weightKg Float?
   notes    String?
 
-  recordedById String
+  recordedById String   @db.Uuid
   recordedAt   DateTime @default(now())
 
   admission  IPDAdmission @relation(fields: [admissionId], references: [id])
@@ -1274,7 +1274,7 @@ model IPDNursingNote {
 
   note         String
   careProvided String?
-  recordedById String
+  recordedById String   @db.Uuid
   recordedAt   DateTime @default(now())
 
   admission  IPDAdmission @relation(fields: [admissionId], references: [id])
@@ -1285,7 +1285,7 @@ model IPDNursingNote {
 
 model LabTest {
   id         String @id @default(uuid())
-  hospitalId String
+  hospitalId String @db.Uuid
 
   code           String
   name           String
@@ -1311,14 +1311,14 @@ model LabRequest {
   id            String @id @default(uuid())
   requestNumber String @unique
 
-  patientId    String
-  hospitalId   String
-  departmentId String
+  patientId    String @db.Uuid
+  hospitalId   String @db.Uuid
+  departmentId String @db.Uuid
 
   opdVisitId     String?
   ipdAdmissionId String?
 
-  requestedById String
+  requestedById String @db.Uuid
 
   priority LabPriority      @default(ROUTINE)
   status   LabRequestStatus @default(REQUESTED)
@@ -1379,7 +1379,7 @@ model LabSample {
   specimenType String
   status       LabSampleStatus @default(COLLECTED)
 
-  collectedById String
+  collectedById String   @db.Uuid
   collectedAt   DateTime @default(now())
 
   receivedAt      DateTime?
@@ -1405,8 +1405,8 @@ model LabResult {
 
   status LabResultStatus @default(DRAFT)
 
-  enteredById  String
-  verifiedById String?
+  enteredById  String  @db.Uuid
+  verifiedById String? @db.Uuid
 
   enteredAt  DateTime  @default(now())
   verifiedAt DateTime?
@@ -1423,7 +1423,7 @@ model LabResult {
 
 model Medicine {
   id         String @id @default(uuid())
-  hospitalId String
+  hospitalId String @db.Uuid
 
   code         String
   name         String
@@ -1455,7 +1455,7 @@ model Medicine {
 
 model Supplier {
   id         String @id @default(uuid())
-  hospitalId String
+  hospitalId String @db.Uuid
 
   code          String
   name          String
@@ -1481,7 +1481,7 @@ model PurchaseOrder {
   id          String @id @default(uuid())
   orderNumber String @unique
 
-  hospitalId String
+  hospitalId String @db.Uuid
   supplierId String
 
   status       PurchaseOrderStatus @default(DRAFT)
@@ -1489,7 +1489,7 @@ model PurchaseOrder {
   expectedDate DateTime?
   notes        String?
 
-  createdById String
+  createdById String @db.Uuid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1525,7 +1525,7 @@ model PurchaseOrderItem {
 
 model MedicineBatch {
   id         String @id @default(uuid())
-  hospitalId String
+  hospitalId String @db.Uuid
   medicineId String
 
   batchNumber String
@@ -1551,7 +1551,7 @@ model MedicineBatch {
 
 model StockMovement {
   id         String  @id @default(uuid())
-  hospitalId String
+  hospitalId String @db.Uuid
   medicineId String
   batchId    String?
 
@@ -1562,7 +1562,7 @@ model StockMovement {
   reference String?
   reason    String?
 
-  performedById String
+  performedById String   @db.Uuid
   createdAt     DateTime @default(now())
 
   medicine     Medicine       @relation(fields: [medicineId], references: [id])
@@ -1582,10 +1582,10 @@ model PharmacyDispense {
   id             String @id @default(uuid())
   dispenseNumber String @unique
 
-  hospitalId     String
+  hospitalId     String @db.Uuid
   prescriptionId String
 
-  dispensedById String
+  dispensedById String @db.Uuid
   status        PharmacyDispenseStatus @default(COMPLETED)
 
   notes       String?
@@ -1856,9 +1856,7 @@ model IPDTransfer {
   // in the existing schema, so this field must match it.
   admissionId String
 
-  // Keep this scalar consistent with the existing
-  // IPDAdmission.hospitalId type.
-  hospitalId String
+  hospitalId String @db.Uuid
 
   fromWardId String @db.Uuid
   toWardId   String @db.Uuid
@@ -1917,7 +1915,7 @@ model IPDDischargeRequest {
 
   // Match the existing IPDAdmission scalar types.
   admissionId String
-  hospitalId  String
+  hospitalId  String @db.Uuid
 
   reason        String
   clinicalNotes String?
@@ -1953,7 +1951,7 @@ model IPDDischargeSummary {
   id String @id @default(uuid()) @db.Uuid
 
   dischargeRequestId String @unique @db.Uuid
-  hospitalId         String
+  hospitalId         String @db.Uuid
 
   finalDiagnosis      String
   secondaryDiagnoses  String?
