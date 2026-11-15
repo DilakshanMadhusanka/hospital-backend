@@ -23,8 +23,10 @@ import { HospitalQueryDto } from './dto/hospital-query.dto.js';
 
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../rbac/guards/roles.guard.js';
+import { Roles } from '../rbac/decorators/roles.decorator.js';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('Hospitals')
 @Controller('hospitals')
 export class HospitalsController {
@@ -33,6 +35,7 @@ export class HospitalsController {
     private readonly hospitalsService: HospitalsService,
   ) {}
   
+  @Roles('SYSTEM_ADMIN')
   @Post()
   @ApiOperation({ summary: 'Register a new hospital' })
   create(@Body() dto: CreateHospitalDto) {
