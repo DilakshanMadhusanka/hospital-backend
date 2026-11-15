@@ -33,19 +33,40 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User is not authorized');
     }
 
-    const adminAssignment =
-      await this.prisma.userRole.findFirst({
-        where: {
-          userId: user.id,
-          hospitalId: null,
-          role: { name: 'SYSTEM_ADMIN' },
+    const assignments = await this.prisma.userRole.findMany({
+      where: { userId: user.id },
+      select: {
+        hospitalId: true,
+        role: {
+          select: {
+            name: true,
+            rolePermissions: {
+              select: {
+                permission: { select: { code: true } },
+              },
+            },
+          },
         },
-        select: { id: true },
-      });
+      },
+    });
+    const permissions = [
+      ...new Set(
+        assignments.flatMap((assignment) =>
+          assignment.role.rolePermissions.map(
+            (rolePermission) => rolePermission.permission.code,
+          ),
+        ),
+      ),
+    ];
 
     return {
       ...user,
-      isSystemAdmin: Boolean(adminAssignment),
+      isSystemAdmin: assignments.some(
+        (assignment) =>
+          assignment.hospitalId === null &&
+          assignment.role.name === 'SYSTEM_ADMIN',
+      ),
+      permissions,
     };
   }
 }
