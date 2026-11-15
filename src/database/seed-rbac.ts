@@ -84,23 +84,30 @@ async function main() {
         throw new Error('SYSTEM_ADMIN role not found');
       }
 
-      const existingAssignment = await prisma.userRole.findFirst({
-        where: {
-          userId: admin.id,
-          roleId: adminRole.id,
-          hospitalId: null,
-        },
-      });
+      await prisma.$transaction(async (transaction) => {
+        await transaction.user.update({
+          where: { id: admin.id },
+          data: { systemAdminKey: 'SYSTEM_ADMIN' },
+        });
 
-      if (!existingAssignment) {
-        await prisma.userRole.create({
-          data: {
+        const existingAssignment = await transaction.userRole.findFirst({
+          where: {
             userId: admin.id,
             roleId: adminRole.id,
             hospitalId: null,
           },
         });
-      }
+
+        if (!existingAssignment) {
+          await transaction.userRole.create({
+            data: {
+              userId: admin.id,
+              roleId: adminRole.id,
+              hospitalId: null,
+            },
+          });
+        }
+      });
 
       console.log(`SYSTEM_ADMIN assigned to ${adminEmail}`);
     } else {

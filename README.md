@@ -31,6 +31,24 @@
 $ npm install
 ```
 
+## System administrator access
+
+The system has one global `SYSTEM_ADMIN` account. Create the intended account
+through the normal registration flow, then configure its exact email as
+`BOOTSTRAP_ADMIN_EMAIL` in the backend environment and run:
+
+```bash
+npx prisma migrate deploy
+npm run seed:rbac
+```
+
+The database enforces a unique
+administrator key, and the seed/role-assignment flow refuses a second admin.
+The administrator signs in through the frontend's **System admin sign in**
+link (the `POST /auth/admin-login` endpoint); the standard login remains
+available to other users. Never expose bootstrap configuration or credentials
+in the frontend.
+
 ## Compile and run the project
 
 ```bash

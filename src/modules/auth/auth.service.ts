@@ -57,6 +57,14 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    return this.authenticate(dto, false);
+  }
+
+  async adminLogin(dto: LoginDto) {
+    return this.authenticate(dto, true);
+  }
+
+  private async authenticate(dto: LoginDto, requireSystemAdmin: boolean) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -78,6 +86,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    const adminAssignment = await this.prisma.userRole.findFirst({
+      where: {
+        userId: user.id,
+        hospitalId: null,
+        role: { name: 'SYSTEM_ADMIN' },
+      },
+      select: { id: true },
+    });
+    const isSystemAdmin = Boolean(adminAssignment);
+    if (requireSystemAdmin && !isSystemAdmin) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
     const payload = {
       sub: user.id,
       email: user.email,
@@ -95,6 +116,7 @@ export class AuthService {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        isSystemAdmin,
       },
     };
   }

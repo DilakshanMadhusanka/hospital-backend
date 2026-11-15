@@ -627,6 +627,7 @@ model User {
   lastName  String
   phone     String?
   isActive  Boolean @default(true)
+  systemAdminKey String? @unique
 
   status      UserStatus @default(ACTIVE)
   lastLoginAt DateTime?

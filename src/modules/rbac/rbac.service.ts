@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateRoleDto } from './dto/create-role.dto.js';
@@ -112,6 +113,12 @@ export class RbacService {
     }
 
     if (dto.hospitalId) {
+      if (role.name === 'SYSTEM_ADMIN') {
+        throw new BadRequestException(
+          'SYSTEM_ADMIN must be assigned system-wide, not to a hospital',
+        );
+      }
+
       const hospital = await this.prisma.hospital.findUnique({
         where: { id: dto.hospitalId },
       });
@@ -133,25 +140,48 @@ export class RbacService {
       throw new ConflictException('Role already assigned');
     }
 
-    return this.prisma.userRole.create({
-      data: {
-        userId: dto.userId,
-        roleId: dto.roleId,
-        hospitalId: dto.hospitalId ?? null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        if (role.name === 'SYSTEM_ADMIN') {
+          await transaction.user.update({
+            where: { id: user.id },
+            data: { systemAdminKey: 'SYSTEM_ADMIN' },
+          });
+        }
+
+        return transaction.userRole.create({
+          data: {
+            userId: dto.userId,
+            roleId: dto.roleId,
+            hospitalId: dto.hospitalId ?? null,
           },
-        },
-        role: true,
-        hospital: true,
-      },
-    });
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            role: true,
+            hospital: true,
+          },
+        });
+      });
+    } catch (error) {
+      if (
+        role.name === 'SYSTEM_ADMIN' &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'A system administrator is already configured',
+        );
+      }
+
+      throw error;
+    }
   }
 
   async getUserRoles(userId: string) {
@@ -189,8 +219,36 @@ export class RbacService {
       throw new NotFoundException('Role assignment not found');
     }
 
-    await this.prisma.userRole.delete({
-      where: { id: assignmentId },
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.userRole.delete({
+        where: { id: assignmentId },
+      });
+
+      if (assignment.roleId) {
+        const assignedRole = await transaction.role.findUnique({
+          where: { id: assignment.roleId },
+          select: { name: true },
+        });
+
+        if (assignedRole?.name === 'SYSTEM_ADMIN') {
+          const remainingAdminAssignment =
+            await transaction.userRole.findFirst({
+              where: {
+                userId: assignment.userId,
+                roleId: assignment.roleId,
+                hospitalId: null,
+              },
+              select: { id: true },
+            });
+
+          if (!remainingAdminAssignment) {
+            await transaction.user.update({
+              where: { id: assignment.userId },
+              data: { systemAdminKey: null },
+            });
+          }
+        }
+      }
     });
 
     return {

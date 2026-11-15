@@ -26,6 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         firstName: true,
         lastName: true,
         isActive: true,
+        systemAdminKey: true,
       },
     });
 
@@ -33,6 +34,22 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User is not authorized');
     }
 
-    return user;
+    const { systemAdminKey, ...profile } = user;
+    const adminAssignment =
+      systemAdminKey === 'SYSTEM_ADMIN'
+        ? await this.prisma.userRole.findFirst({
+            where: {
+              userId: user.id,
+              hospitalId: null,
+              role: { name: 'SYSTEM_ADMIN' },
+            },
+            select: { id: true },
+          })
+        : null;
+
+    return {
+      ...profile,
+      isSystemAdmin: Boolean(adminAssignment),
+    };
   }
 }
