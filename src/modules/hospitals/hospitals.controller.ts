@@ -25,6 +25,7 @@ import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../rbac/guards/roles.guard.js';
 import { Roles } from '../rbac/decorators/roles.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('Hospitals')
@@ -44,16 +45,23 @@ export class HospitalsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all hospitals' })
-  findAll(@Query() query: HospitalQueryDto) {
-    return this.hospitalsService.findAll(query);
+  findAll(
+    @Query() query: HospitalQueryDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.hospitalsService.findAll(query, user.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get hospital by ID' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.hospitalsService.findOne(id);
+  findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.hospitalsService.findOne(id, user.id);
   }
 
+  @Roles('SYSTEM_ADMIN')
   @Patch(':id')
   @ApiOperation({ summary: 'Update hospital details' })
   update(
@@ -63,6 +71,7 @@ export class HospitalsController {
     return this.hospitalsService.update(id, dto);
   }
 
+  @Roles('SYSTEM_ADMIN')
   @Delete(':id')
   @ApiOperation({ summary: 'Deactivate a hospital' })
   remove(@Param('id', ParseUUIDPipe) id: string) {

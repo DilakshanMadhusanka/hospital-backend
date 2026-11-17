@@ -15,6 +15,7 @@ vi.mock('bcrypt', () => ({
 describe('AuthService administrator login', () => {
   const findUnique = vi.fn();
   const findFirst = vi.fn();
+  const findMany = vi.fn();
   const createUser = vi.fn();
   const signAsync = vi.fn();
   let authService: AuthService;
@@ -23,6 +24,8 @@ describe('AuthService administrator login', () => {
     vi.clearAllMocks();
     findUnique.mockReset();
     findFirst.mockReset();
+    findMany.mockReset();
+    findMany.mockResolvedValue([]);
     createUser.mockReset();
     signAsync.mockReset();
     vi.mocked(bcrypt.compare).mockResolvedValue(true);
@@ -31,7 +34,7 @@ describe('AuthService administrator login', () => {
     authService = new AuthService(
       {
         user: { findUnique, create: createUser },
-        userRole: { findFirst },
+        userRole: { findFirst, findMany },
       } as unknown as PrismaService,
       { signAsync } as never,
     );
@@ -56,6 +59,7 @@ describe('AuthService administrator login', () => {
 
     expect(result.user.isSystemAdmin).toBe(true);
     expect(result.accessToken).toBe('signed-token');
+    expect(result.user.hospitalIds).toEqual([]);
     expect(findFirst).toHaveBeenCalledWith({
       where: {
         userId: 'admin-id',
@@ -113,6 +117,32 @@ describe('AuthService administrator login', () => {
     });
 
     expect(result.user.isSystemAdmin).toBe(true);
+  });
+
+  it('returns only the hospitals assigned to the authenticated user', async () => {
+    findUnique.mockResolvedValue({
+      id: 'hospital-admin-id',
+      email: 'admin@example.test',
+      firstName: 'Hospital',
+      lastName: 'Admin',
+      isActive: true,
+      passwordHash: 'stored-hash',
+    });
+    findFirst.mockResolvedValue(null);
+    findMany.mockResolvedValue([
+      { hospitalId: 'hospital-1', role: { name: 'HOSPITAL_ADMIN' } },
+      { hospitalId: 'hospital-2', role: { name: 'DOCTOR' } },
+      { hospitalId: 'hospital-1', role: { name: 'HOSPITAL_ADMIN' } },
+    ]);
+
+    const result = await authService.login({
+      email: 'admin@example.test',
+      password: 'valid-password',
+    });
+
+    expect(result.user.isSystemAdmin).toBe(false);
+    expect(result.user.hospitalIds).toEqual(['hospital-1', 'hospital-2']);
+    expect(result.user.roles).toEqual(['HOSPITAL_ADMIN', 'DOCTOR']);
   });
 
   it('registers a user without an optional phone number', async () => {

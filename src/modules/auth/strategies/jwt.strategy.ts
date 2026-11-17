@@ -66,6 +66,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           assignment.hospitalId === null &&
           assignment.role.name === 'SYSTEM_ADMIN',
       ),
+      hospitalIds: [
+        ...new Set(
+          assignments
+            .map((assignment) => assignment.hospitalId)
+            .filter((hospitalId): hospitalId is string => hospitalId !== null),
+        ),
+      ],
+      roles: [...new Set(assignments.map((assignment) => assignment.role.name))],
       permissions,
     };
   }

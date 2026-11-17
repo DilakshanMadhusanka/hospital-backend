@@ -128,6 +128,24 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    const roleAssignments = await this.prisma.userRole.findMany({
+      where: { userId: user.id, hospitalId: { not: null } },
+      select: {
+        hospitalId: true,
+        role: { select: { name: true } },
+      },
+    });
+    const hospitalIds = [
+      ...new Set(
+        roleAssignments
+          .map((assignment) => assignment.hospitalId)
+          .filter((hospitalId): hospitalId is string => hospitalId !== null),
+      ),
+    ];
+    const roles = [
+      ...new Set(roleAssignments.map((assignment) => assignment.role.name)),
+    ];
+
     const payload = {
       sub: user.id,
       email: user.email,
@@ -146,6 +164,8 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         isSystemAdmin,
+        hospitalIds,
+        roles,
       },
     };
   }

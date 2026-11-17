@@ -41,7 +41,35 @@ export class HospitalsService {
   }
 
   // GET ALL HOSPITALS
-  async findAll(query: HospitalQueryDto) {
+  private async getHospitalScope(userId: string): Promise<string[] | null> {
+    const systemAdminAssignment = await this.prisma.userRole.findFirst({
+      where: {
+        userId,
+        hospitalId: null,
+        role: { name: 'SYSTEM_ADMIN' },
+      },
+      select: { id: true },
+    });
+
+    if (systemAdminAssignment) {
+      return null;
+    }
+
+    const assignments = await this.prisma.userRole.findMany({
+      where: { userId, hospitalId: { not: null } },
+      select: { hospitalId: true },
+    });
+
+    return [
+      ...new Set(
+        assignments
+          .map((assignment) => assignment.hospitalId)
+          .filter((hospitalId): hospitalId is string => hospitalId !== null),
+      ),
+    ];
+  }
+
+  async findAll(query: HospitalQueryDto, userId: string) {
 
     const {
       page = 1,
@@ -53,8 +81,12 @@ export class HospitalsService {
     } = query;
 
     const skip = (page - 1) * limit;
+    const hospitalScope = await this.getHospitalScope(userId);
 
     const where: Prisma.HospitalWhereInput = {
+      ...(hospitalScope !== null && {
+        id: { in: hospitalScope },
+      }),
       ...(search && {
         OR: [
           {
@@ -115,7 +147,11 @@ export class HospitalsService {
   }
 
   // GET ONE HOSPITAL
-  async findOne(id: string) {
+  async findOne(id: string, userId: string) {
+    const hospitalScope = await this.getHospitalScope(userId);
+    if (hospitalScope !== null && !hospitalScope.includes(id)) {
+      throw new NotFoundException('Hospital not found');
+    }
 
     const hospital = await this.prisma.hospital.findUnique({
       where: { id },
@@ -141,8 +177,12 @@ export class HospitalsService {
 
   // UPDATE HOSPITAL
   async update(id: string, dto: UpdateHospitalDto) {
-
-    await this.findOne(id);
+    const hospital = await this.prisma.hospital.findUnique({
+      where: { id },
+    });
+    if (!hospital) {
+      throw new NotFoundException('Hospital not found');
+    }
 
     if (dto.code) {
       const existing = await this.prisma.hospital.findFirst({
@@ -168,7 +208,13 @@ export class HospitalsService {
   // DEACTIVATE HOSPITAL
   async remove(id: string) {
 
-    const hospital = await this.findOne(id);
+    const hospital = await this.prisma.hospital.findUnique({
+      where: { id },
+    });
+
+    if (!hospital) {
+      throw new NotFoundException('Hospital not found');
+    }
 
     if (hospital.status === HospitalStatus.INACTIVE) {
       return {
